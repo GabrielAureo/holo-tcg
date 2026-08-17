@@ -1,4 +1,7 @@
-const state = { posts: [], selected: null, page: 1, x: 50, y: 48, scale: 1, mode: 'full', cutoutUrl: '', processing: false };
+const state = {
+  posts: [], selected: null, page: 1, x: 50, y: 48, scale: 1, mode: 'full',
+  cutoutUrl: '', processing: false, tags: ['hololive', 'solo'], suggestions: [], suggestionTimer: null,
+};
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -15,8 +18,15 @@ app.innerHTML = `
     <div class="workspace">
       <aside class="panel library">
         <div class="panel-head"><div><span class="step">01</span><h2>Find artwork</h2></div><span class="source">DANBOORU</span></div>
-        <form class="search"><input name="query" value="hololive solo" aria-label="Search tags" placeholder="Search tags…"><button aria-label="Search">↗</button></form>
-        <div class="suggestions"><button data-tag="hololive solo">Hololive</button><button data-tag="hatsune_miku solo">Miku</button><button data-tag="original solo">Original</button></div>
+        <form class="search" autocomplete="off">
+          <div class="tag-editor">
+            <div id="tag-chips" class="tag-chips"></div>
+            <input id="tag-input" aria-label="Add search tag" placeholder="Add a tag…" spellcheck="false">
+            <div id="tag-suggestions" class="tag-suggestions" hidden></div>
+          </div>
+          <button type="submit" aria-label="Search">↗</button>
+        </form>
+        <p class="tag-help">Type a Danbooru tag, choose a suggestion, then search. Click × to remove a tag.</p>
         <div id="gallery" class="gallery"><div class="loading">Loading artwork…</div></div>
         <button id="more" class="more">Load more</button>
         <small>Artwork is served by Danbooru and belongs to its respective artists. General-rated results only.</small>
@@ -49,33 +59,97 @@ const $ = (selector) => document.querySelector(selector);
 const gallery = $('#gallery');
 const card = $('#card');
 const art = $('#art');
+const tagInput = $('#tag-input');
+const tagSuggestions = $('#tag-suggestions');
 
-function proxied(url) { return `/api/image?url=${encodeURIComponent(url)}`; }
+function proxied(url) { return url ? `/api/image?url=${encodeURIComponent(url)}` : ''; }
 function friendlyName(post) {
   const tag = post.tag_string_character?.split(' ')[0] || 'untitled character';
   return tag.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
-function renderPosts(append = false) {
-  const markup = state.posts.map((post, index) => `<button class="thumb ${state.selected?.id === post.id ? 'selected' : ''}" data-index="${index}" aria-label="Use ${friendlyName(post)}"><img src="${proxied(post.preview_file_url)}" loading="lazy" alt="${friendlyName(post)}"><span>${post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>`).join('');
-  if (append) gallery.insertAdjacentHTML('beforeend', markup); else gallery.innerHTML = markup || '<div class="empty">No results. Try fewer tags.</div>';
-  gallery.querySelectorAll('.thumb').forEach((button) => button.addEventListener('click', () => selectPost(state.posts[Number(button.dataset.index)])));
+function postPreview(post) { return post.preview_file_url || post.large_file_url || post.file_url || ''; }
+function postImage(post) { return post.large_file_url || post.file_url || post.preview_file_url || ''; }
+function currentQuery() { return state.tags.join(' ').trim(); }
+
+function renderTags() {
+  $('#tag-chips').innerHTML = state.tags.map((tag, index) => `
+    <button type="button" class="tag-chip" data-remove-tag="${index}" title="Remove ${tag}">
+      <span>${tag}</span><b aria-hidden="true">×</b>
+    </button>`).join('');
 }
-async function loadPosts(query = $('.search input').value, append = false) {
+function addTag(rawTag) {
+  const tag = String(rawTag || '').trim().replace(/\s+/g, '_');
+  if (!tag || state.tags.includes(tag)) return;
+  state.tags.push(tag);
+  renderTags();
+  tagInput.value = '';
+  hideSuggestions();
+  tagInput.focus();
+}
+function removeTag(index) {
+  state.tags.splice(index, 1);
+  renderTags();
+  tagInput.focus();
+}
+function hideSuggestions() {
+  state.suggestions = [];
+  tagSuggestions.hidden = true;
+  tagSuggestions.innerHTML = '';
+}
+function renderTagSuggestions() {
+  if (!state.suggestions.length) return hideSuggestions();
+  tagSuggestions.innerHTML = state.suggestions.map((item, index) => `
+    <button type="button" class="tag-suggestion" data-suggestion="${index}">
+      <span>${item.name}</span>${item.post_count != null ? `<small>${Number(item.post_count).toLocaleString()}</small>` : ''}
+    </button>`).join('');
+  tagSuggestions.hidden = false;
+}
+async function loadTagSuggestions(value) {
+  const query = value.trim();
+  if (!query) return hideSuggestions();
+  try {
+    const response = await fetch(`/api/tags?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Autocomplete failed');
+    state.suggestions = (await response.json()).filter((item) => !state.tags.includes(item.name));
+    renderTagSuggestions();
+  } catch {
+    hideSuggestions();
+  }
+}
+
+function renderPosts() {
+  const markup = state.posts.map((post, index) => {
+    const preview = postPreview(post);
+    return `<button class="thumb ${state.selected?.id === post.id ? 'selected' : ''}" data-index="${index}" aria-label="Use ${friendlyName(post)}">
+      ${preview ? `<img src="${proxied(preview)}" loading="lazy" alt="${friendlyName(post)}">` : '<div class="thumb-missing">NO IMAGE</div>'}
+      <span>${post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span>
+    </button>`;
+  }).join('');
+  gallery.innerHTML = markup || '<div class="empty">No results. Try fewer tags.</div>';
+  gallery.querySelectorAll('.thumb').forEach((button) => button.addEventListener('click', () => selectPost(state.posts[Number(button.dataset.index)])));
+  gallery.querySelectorAll('.thumb img').forEach((image) => image.addEventListener('error', () => {
+    image.replaceWith(Object.assign(document.createElement('div'), { className: 'thumb-missing', textContent: 'IMAGE FAILED' }));
+  }, { once: true }));
+}
+async function loadPosts(append = false) {
+  const query = currentQuery();
   if (!append) { state.page = 1; gallery.innerHTML = '<div class="loading">Searching the board…</div>'; }
   $('#more').disabled = true;
   try {
     const response = await fetch(`/api/posts?q=${encodeURIComponent(query)}&page=${state.page}`);
-    if (!response.ok) throw new Error('The imageboard could not be reached.');
-    const posts = await response.json();
-    state.posts = append ? [...state.posts, ...posts] : posts;
-    renderPosts(false);
-  } catch (error) { gallery.innerHTML = `<div class="empty">${error.message}<br>Try again shortly.</div>`; }
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error || 'The imageboard could not be reached.');
+    state.posts = append ? [...state.posts, ...payload] : payload;
+    renderPosts();
+  } catch (error) {
+    gallery.innerHTML = `<div class="empty">${error.message}<br>Try again shortly.</div>`;
+  }
   $('#more').disabled = false;
 }
 function selectPost(post) {
   if (state.cutoutUrl) URL.revokeObjectURL(state.cutoutUrl);
   state.selected = post; state.cutoutUrl = '';
-  art.src = proxied(post.large_file_url || post.file_url);
+  art.src = proxied(postImage(post));
   art.alt = friendlyName(post);
   $('#card-name').textContent = friendlyName(post);
   $('#remove-bg').disabled = false;
@@ -88,9 +162,37 @@ function applyPlacement() {
   $('#scale-out').value = `${Math.round(state.scale * 100)}%`; $('#x-out').value = `${state.x}%`; $('#y-out').value = `${state.y}%`;
 }
 
-$('.search').addEventListener('submit', (event) => { event.preventDefault(); loadPosts(); });
-$('.suggestions').addEventListener('click', (event) => { if (!event.target.dataset.tag) return; $('.search input').value = event.target.dataset.tag; loadPosts(); });
-$('#more').addEventListener('click', () => { state.page += 1; loadPosts($('.search input').value, true); });
+renderTags();
+$('#tag-chips').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-remove-tag]');
+  if (button) removeTag(Number(button.dataset.removeTag));
+});
+tagInput.addEventListener('input', () => {
+  clearTimeout(state.suggestionTimer);
+  state.suggestionTimer = setTimeout(() => loadTagSuggestions(tagInput.value), 180);
+});
+tagInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') return hideSuggestions();
+  if (event.key === 'Backspace' && !tagInput.value && state.tags.length) return removeTag(state.tags.length - 1);
+  if (event.key === 'Enter' && tagInput.value.trim()) {
+    event.preventDefault();
+    addTag(state.suggestions[0]?.name || tagInput.value);
+  }
+});
+tagSuggestions.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-suggestion]');
+  if (!button) return;
+  addTag(state.suggestions[Number(button.dataset.suggestion)]?.name);
+});
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.tag-editor')) hideSuggestions();
+});
+$('.search').addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (tagInput.value.trim()) addTag(tagInput.value);
+  loadPosts();
+});
+$('#more').addEventListener('click', () => { state.page += 1; loadPosts(true); });
 $('.segmented').addEventListener('click', (event) => { if (!event.target.dataset.mode) return; state.mode = event.target.dataset.mode; document.querySelectorAll('.segmented button').forEach((button) => button.classList.toggle('active', button === event.target)); applyPlacement(); });
 ['scale', 'x', 'y'].forEach((id) => $(`#${id}`).addEventListener('input', (event) => { state[id] = id === 'scale' ? Number(event.target.value) / 100 : Number(event.target.value); applyPlacement(); }));
 $('#reset').addEventListener('click', () => { Object.assign(state, { x: 50, y: 48, scale: 1 }); $('#scale').value = 100; $('#x').value = 50; $('#y').value = 48; applyPlacement(); });
@@ -99,7 +201,7 @@ $('#remove-bg').addEventListener('click', async () => {
   state.processing = true; $('#remove-bg').disabled = true; $('#remove-bg').innerHTML = '<span class="spinner"></span> Isolating subject…'; $('#process-note').textContent = 'The first run downloads the AI model. This can take a minute.';
   try {
     const { removeBackground } = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
-    const blob = await removeBackground(proxied(state.selected.large_file_url || state.selected.file_url), { progress: (_key, current, total) => { if (total) $('#process-note').textContent = `Loading background model · ${Math.round(current / total * 100)}%`; } });
+    const blob = await removeBackground(proxied(postImage(state.selected)), { progress: (_key, current, total) => { if (total) $('#process-note').textContent = `Loading background model · ${Math.round(current / total * 100)}%`; } });
     if (state.cutoutUrl) URL.revokeObjectURL(state.cutoutUrl);
     state.cutoutUrl = URL.createObjectURL(blob); art.src = state.cutoutUrl; card.classList.add('isolated');
     $('#process-note').textContent = 'Subject isolated. Fine-tune its scale and placement.';
