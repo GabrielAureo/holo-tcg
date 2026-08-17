@@ -1,0 +1,117 @@
+/* Layered foil system inspired by physical TCG finishes. Patterns are original CSS, not copied assets. */
+.card{
+  --foil-opacity:.68;
+  --foil-saturation:1.65;
+  --foil-contrast:1.25;
+  --foil-size:220% 220%;
+  --foil-pos:var(--mx) var(--my);
+}
+.card .art-layer{
+  position:absolute;
+  left:var(--art-x);
+  top:var(--art-y);
+  width:auto;
+  height:78%;
+  max-width:none;
+  object-fit:contain;
+  transform:translate(-50%,-50%) scale(var(--art-scale));
+  transition:height .25s;
+  pointer-events:none;
+}
+.card .art-background{z-index:2;filter:saturate(.9) contrast(1.04)}
+.card .art-subject{z-index:5;filter:saturate(1.02) contrast(1.03) drop-shadow(0 5px 7px #0005)}
+.card .art-subject[hidden]{display:none}
+.card.in-frame .art-layer{height:100%}
+.card.in-frame .art-background{filter:saturate(.78) contrast(1.08)}
+.card.in-frame .art-subject{filter:saturate(1.03) contrast(1.04) drop-shadow(0 5px 8px #0007)}
+
+/* The strong foil lives between the untouched artwork and the extracted subject. */
+.card .card-foil{
+  z-index:4;
+  opacity:var(--foil-opacity);
+  filter:saturate(var(--foil-saturation)) contrast(var(--foil-contrast));
+  background-position:var(--foil-pos);
+  transition:opacity .25s,filter .25s;
+}
+.card.has-subject .card-foil{opacity:calc(var(--foil-opacity) * 1.08)}
+.card .card-glare{z-index:7}
+.card .card-copy{z-index:9}
+
+/* CLASSIC: broad rainbow bands with a fine etched line layer. */
+.card[data-foil="classic"] .card-foil{
+  background-image:
+    radial-gradient(circle at var(--mx) var(--my),#fff9 0 3%,transparent 19%),
+    repeating-linear-gradient(115deg,#ff4f9b 0 6%,#ffed8277 10%,#79ffb477 16%,#61dfff88 23%,#9c71ff88 31%,#ff4f9b 39%),
+    repeating-linear-gradient(28deg,#fff0 0 7px,#fff3 8px,#fff0 10px);
+  background-size:100% 100%,240% 240%,170% 170%;
+  background-position:center,calc(var(--mx) * .65) calc(var(--my) * .65),calc(var(--mx) * -1) calc(var(--my) * -1);
+  background-blend-mode:screen,color-dodge,soft-light;
+  mix-blend-mode:color-dodge;
+}
+
+/* GALAXY: star/sparkle texture plus a slower spectrum beneath it. */
+.card[data-foil="galaxy"] .card-foil{
+  --foil-opacity:.74;
+  background-image:
+    radial-gradient(circle at 12% 18%,#fff 0 1px,transparent 2px),
+    radial-gradient(circle at 72% 31%,#fff 0 1.5px,transparent 2.5px),
+    radial-gradient(circle at 38% 78%,#fff 0 1px,transparent 2px),
+    radial-gradient(circle at 88% 72%,#fff 0 1px,transparent 2px),
+    radial-gradient(circle at var(--mx) var(--my),#cfffffaa 0 5%,transparent 27%),
+    repeating-linear-gradient(125deg,#ff5d9b66 0 9%,#ffe56c77 15%,#62ffd488 24%,#65b8ff88 33%,#bd75ff88 42%,#ff5d9b66 51%);
+  background-size:57px 61px,83px 79px,101px 97px,131px 127px,100% 100%,280% 280%;
+  background-position:calc(var(--mx) * -.3) calc(var(--my) * -.3),calc(var(--mx) * .2) calc(var(--my) * .15),calc(var(--mx) * -.18) calc(var(--my) * .28),calc(var(--mx) * .31) calc(var(--my) * -.2),center,var(--mx) var(--my);
+  background-blend-mode:screen,screen,screen,screen,screen,color-dodge;
+  mix-blend-mode:screen;
+}
+
+/* PRISM: small facets, closer to etched/prismatic foil than a plain rainbow. */
+.card[data-foil="prism"] .card-foil{
+  --foil-opacity:.7;
+  --foil-contrast:1.7;
+  background-image:
+    conic-gradient(from calc((var(--mx,50%) - 50%) * .5) at var(--mx) var(--my),#ff467a,#ffd56d,#74ffbc,#59dfff,#8d72ff,#ff64cb,#ff467a),
+    repeating-linear-gradient(45deg,#fff0 0 9px,#fff4 10px,#0002 11px,#fff0 15px),
+    repeating-linear-gradient(-45deg,#fff0 0 12px,#8ff4 13px,#0002 14px,#fff0 18px);
+  background-size:180% 180%,160% 160%,190% 190%;
+  background-position:var(--mx) var(--my),calc(var(--mx) * -1) var(--my),var(--mx) calc(var(--my) * -1);
+  background-blend-mode:color-dodge,overlay,hard-light;
+  mix-blend-mode:color-dodge;
+}
+
+/* FULL ART: fine interference waves across most of the image. */
+.card[data-foil="fullart"] .card-foil{
+  --foil-opacity:.56;
+  background-image:
+    repeating-radial-gradient(ellipse at var(--mx) var(--my),#fff0 0 7px,#fff3 8px,#6ff3 9px,#fff0 12px),
+    repeating-linear-gradient(133deg,#ff718577 0 5%,#ffe66d77 10%,#8fff9c77 15%,#66d9ff77 20%,#b476ff77 25%,#ff718577 30%),
+    radial-gradient(circle at var(--mx) var(--my),#fff9 0 4%,transparent 34%);
+  background-size:155% 155%,340% 340%,100% 100%;
+  background-position:var(--mx) var(--my),calc(var(--mx) * .8) calc(var(--my) * .8),center;
+  background-blend-mode:soft-light,color-dodge,screen;
+  mix-blend-mode:color-dodge;
+}
+
+/* GOLD: metallic micro-lines plus warm specular response. */
+.card[data-foil="gold"] .card-foil{
+  --foil-opacity:.72;
+  --foil-saturation:.85;
+  --foil-contrast:2.1;
+  background-image:
+    radial-gradient(circle at var(--mx) var(--my),#fffbd0 0 4%,#ffd95b88 12%,transparent 35%),
+    repeating-linear-gradient(110deg,#302009 0 3%,#c99425 4%,#fff1a8 5%,#7a4c10 7%,#2b1b08 10%),
+    repeating-linear-gradient(27deg,#fff0 0 5px,#fff5 6px,#0003 7px,#fff0 9px);
+  background-size:100% 100%,330% 330%,170% 170%;
+  background-position:center,var(--mx) var(--my),calc(var(--mx) * -1) calc(var(--my) * -1);
+  background-blend-mode:screen,color-dodge,overlay;
+  mix-blend-mode:color-dodge;
+}
+
+.foil-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.foil-option{position:relative;min-height:48px;border:1px solid #30333e;background:#11131b;color:#777b87;padding:7px 8px;text-align:left;font:9px DM Mono;cursor:pointer;overflow:hidden}
+.foil-option::before{content:"";display:block;height:10px;margin-bottom:6px;border-radius:2px;background:linear-gradient(110deg,#ff5f95,#ffe36f,#74ffc1,#5fdcff,#a26fff,#ff5f95);background-size:200%;opacity:.45}
+.foil-option.active{border-color:var(--acid);color:#f1f2f5;background:#191b24}
+.foil-option.active::before{opacity:1;animation:foilSwatch 3s linear infinite}
+@keyframes foilSwatch{to{background-position:200% 0}}
+.layer-note{margin:8px 0 18px;padding:9px;border:1px solid #242732;background:#101119;color:#707481;font:9px/1.45 DM Mono}
+.layer-note strong{color:#b9bdc7;font-weight:500}
