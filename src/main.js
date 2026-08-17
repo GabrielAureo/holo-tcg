@@ -13,7 +13,7 @@ app.innerHTML = `
     <section class="intro">
       <p class="eyebrow">Holographic card composer</p>
       <h1>Turn character art into<br><em>a collectible moment.</em></h1>
-      <p>Browse general-rated anime artwork, isolate a subject with IMG.LY, then position it over an interactive foil card.</p>
+      <p>Browse anime artwork, isolate a subject with IMG.LY, then position it over an interactive foil card.</p>
     </section>
     <div class="workspace">
       <aside class="panel library">
@@ -26,10 +26,10 @@ app.innerHTML = `
           </div>
           <button type="submit" aria-label="Search">↗</button>
         </form>
-        <p class="tag-help">Type a Danbooru tag, choose a suggestion, then search. Click × to remove a tag.</p>
+        <p class="tag-help">Type a Danbooru tag, choose a suggestion, then search. Rating defaults to general unless you add a rating tag.</p>
         <div id="gallery" class="gallery"><div class="loading">Loading artwork…</div></div>
         <button id="more" class="more">Load more</button>
-        <small>Artwork is served by Danbooru and belongs to its respective artists. General-rated results only.</small>
+        <small>Artwork is served by Danbooru and belongs to its respective artists.</small>
       </aside>
 
       <section class="stage" aria-label="Card preview">
@@ -149,6 +149,7 @@ async function loadPosts(append = false) {
 function selectPost(post) {
   if (state.cutoutUrl) URL.revokeObjectURL(state.cutoutUrl);
   state.selected = post; state.cutoutUrl = '';
+  card.classList.remove('isolated');
   art.src = proxied(postImage(post));
   art.alt = friendlyName(post);
   $('#card-name').textContent = friendlyName(post);
@@ -198,15 +199,37 @@ $('.segmented').addEventListener('click', (event) => { if (!event.target.dataset
 $('#reset').addEventListener('click', () => { Object.assign(state, { x: 50, y: 48, scale: 1 }); $('#scale').value = 100; $('#x').value = 50; $('#y').value = 48; applyPlacement(); });
 $('#remove-bg').addEventListener('click', async () => {
   if (!state.selected || state.processing) return;
-  state.processing = true; $('#remove-bg').disabled = true; $('#remove-bg').innerHTML = '<span class="spinner"></span> Isolating subject…'; $('#process-note').textContent = 'The first run downloads the AI model. This can take a minute.';
+  state.processing = true;
+  $('#remove-bg').disabled = true;
+  $('#remove-bg').innerHTML = '<span class="spinner"></span> Isolating subject…';
+  $('#process-note').textContent = 'Fetching source image…';
   try {
-    const { removeBackground } = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
-    const blob = await removeBackground(proxied(postImage(state.selected)), { progress: (_key, current, total) => { if (total) $('#process-note').textContent = `Loading background model · ${Math.round(current / total * 100)}%`; } });
+    const imageResponse = await fetch(proxied(postImage(state.selected)), { credentials: 'same-origin' });
+    if (!imageResponse.ok) throw new Error(`Image proxy returned ${imageResponse.status}`);
+    const contentType = imageResponse.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().startsWith('image/')) throw new Error(`Expected image data but received ${contentType || 'unknown content type'}`);
+    const imageBlob = await imageResponse.blob();
+
+    $('#process-note').textContent = 'The first run downloads the AI model. This can take a minute.';
+    const module = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
+    const removeBackground = module.removeBackground || module.default;
+    if (typeof removeBackground !== 'function') throw new Error('Background-removal module did not expose a remover function');
+    const blob = await removeBackground(imageBlob, {
+      progress: (_key, current, total) => {
+        if (total) $('#process-note').textContent = `Loading background model · ${Math.round(current / total * 100)}%`;
+      },
+    });
     if (state.cutoutUrl) URL.revokeObjectURL(state.cutoutUrl);
-    state.cutoutUrl = URL.createObjectURL(blob); art.src = state.cutoutUrl; card.classList.add('isolated');
+    state.cutoutUrl = URL.createObjectURL(blob);
+    art.src = state.cutoutUrl;
+    card.classList.add('isolated');
     $('#process-note').textContent = 'Subject isolated. Fine-tune its scale and placement.';
-  } catch (error) { $('#process-note').textContent = `Could not remove background: ${error.message}`; }
-  state.processing = false; $('#remove-bg').disabled = false; $('#remove-bg').innerHTML = '<span>✦</span> Remove again';
+  } catch (error) {
+    $('#process-note').textContent = `Could not remove background: ${error.message}`;
+  }
+  state.processing = false;
+  $('#remove-bg').disabled = false;
+  $('#remove-bg').innerHTML = '<span>✦</span> Remove again';
 });
 
 function tilt(event) {
