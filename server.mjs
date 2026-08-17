@@ -34,11 +34,12 @@ async function handler(req, res) {
   }
   let pathname = decodeURIComponent(requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
   const base = process.env.NODE_ENV === 'production' ? resolve(root, 'dist') : root;
+  const baseWithSep = base.endsWith(sep) ? base : `${base}${sep}`;
   let filename = resolve(base, `.${pathname}`);
   // Treat invalid paths like any other missing asset rather than exposing a
   // separate "Forbidden" response that can be confused with the Codespaces
   // forwarding gateway's access-control page.
-  if (!filename.startsWith(`${base}${sep}`)) return send(res, 404, 'Not found.');
+  if (filename !== base && !filename.startsWith(baseWithSep)) return send(res, 404, 'Not found.');
   try { if (!(await stat(filename)).isFile()) throw new Error(); const content = await readFile(filename); return send(res, 200, content, types[extname(filename)] || 'application/octet-stream'); }
   catch { try { return send(res, 200, await readFile(resolve(base, 'index.html')), types['.html']); } catch { return send(res, 404, 'Not found.'); } }
 }
