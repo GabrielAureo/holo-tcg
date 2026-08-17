@@ -15,6 +15,9 @@ function send(res, status, body, type = 'text/plain; charset=utf-8', headers = {
 
 async function handler(req, res) {
   const requestUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  if (requestUrl.pathname === '/api/health') {
+    return send(res, 200, JSON.stringify({ ok: true }), 'application/json');
+  }
   if (requestUrl.pathname === '/api/posts') {
     const query = requestUrl.searchParams.get('q')?.slice(0, 160) || 'hololive';
     const page = Math.max(1, Math.min(1000, Number(requestUrl.searchParams.get('page')) || 1));
@@ -32,9 +35,12 @@ async function handler(req, res) {
   let pathname = decodeURIComponent(requestUrl.pathname === '/' ? '/index.html' : requestUrl.pathname);
   const base = process.env.NODE_ENV === 'production' ? resolve(root, 'dist') : root;
   let filename = resolve(base, `.${pathname}`);
-  if (!filename.startsWith(`${base}${sep}`)) return send(res, 403, 'Forbidden.');
+  // Treat invalid paths like any other missing asset rather than exposing a
+  // separate "Forbidden" response that can be confused with the Codespaces
+  // forwarding gateway's access-control page.
+  if (!filename.startsWith(`${base}${sep}`)) return send(res, 404, 'Not found.');
   try { if (!(await stat(filename)).isFile()) throw new Error(); const content = await readFile(filename); return send(res, 200, content, types[extname(filename)] || 'application/octet-stream'); }
   catch { try { return send(res, 200, await readFile(resolve(base, 'index.html')), types['.html']); } catch { return send(res, 404, 'Not found.'); } }
 }
 export const server = createServer(handler);
-if (process.env.NODE_ENV !== 'test') server.listen(port, () => console.log(`Holo Studio listening on http://localhost:${port}`));
+if (process.env.NODE_ENV !== 'test') server.listen(port, '0.0.0.0', () => console.log(`Holo Studio listening on http://0.0.0.0:${port}`));
