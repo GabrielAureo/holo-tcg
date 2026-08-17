@@ -71,26 +71,23 @@
   filter:brightness(calc((var(--hyp)*.3) + .5)) contrast(2.5) saturate(.6);
 }
 
-/* CodePen: rare rainbow, with the texture layer softened for arbitrary source art. */
-.card[data-foil="fullart"] .card-foil{
+/* CodePen: rare rainbow */
+.card[data-foil="fullart"] .card-foil,
+.card[data-foil="fullart"] .card-foil::after{
   --space:7%;--angle:-20deg;--angle2:130deg;--imgsize:540px 700px;
   background-image:
     url("/assets/holo/rainbow2.jpg"),
     repeating-linear-gradient(var(--angle),rgb(253,71,65) calc(var(--space)*1),rgb(255,243,151) calc(var(--space)*2),rgba(168,255,95,1) calc(var(--space)*3),rgba(131,255,247,1) calc(var(--space)*4),rgb(75,198,255) calc(var(--space)*5),rgb(255,73,246) calc(var(--space)*6),rgb(255,56,49) calc(var(--space)*7)),
-    repeating-linear-gradient(var(--angle2),rgba(89,46,80,.35) 0%,hsl(118,100%,50%) 2.5%,rgb(223,246,89) 5%,hsl(180,100%,50%) 7.5%,rgba(14,21,46,.35) 10%,rgba(14,21,46,.35) 15%),
-    radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(0,0,0,.08) 12%,rgba(0,0,0,.12) 20%,rgba(0,0,0,.2) 120%);
-  background-blend-mode:soft-light,soft-light,screen;
-  background-size:var(--imgsize),400% 400%,400% 400%,200% 200%;
-  background-position:center,0% var(--posy),var(--posx) var(--posy),var(--posx) var(--posy);
-  filter:brightness(calc((var(--hyp)*.25) + .62)) contrast(1.35) saturate(1.25);
+    repeating-linear-gradient(var(--angle2),rgba(89,46,80,.5) 0%,hsl(118,43%,76%) 2.5%,rgb(223,96,202) 5%,hsl(180,57%,56%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
+    url("/assets/holo/illusion2.webp");
+  background-size:50% 50%,500% 500%,1000% 1000%,var(--imgsize);
+  background-position:center,0% calc(var(--posy)*1.5),var(--posx) var(--posy),center;
+  background-blend-mode:color-burn,soft-light,normal;
+  filter:brightness(calc((var(--hyp)*.25) + .66)) contrast(2) saturate(.95);
 }
 .card[data-foil="fullart"] .card-foil::after{
-  background-image:url("/assets/holo/rainbow2.jpg");
-  background-size:var(--imgsize);
-  background-position:center;
-  mix-blend-mode:soft-light;
-  filter:brightness(1.08) contrast(1.05) saturate(1.15);
-  opacity:.18;
+  background-position:center,0% calc(var(--posy)*-1),calc(var(--posx)*-1) calc(var(--posy)*-1),center;
+  mix-blend-mode:exclusion;
 }
 
 /* CodePen: rare secret / metallic gold */
