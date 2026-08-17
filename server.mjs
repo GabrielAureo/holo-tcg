@@ -15,6 +15,15 @@ export function isAllowedImageUrl(value) {
     return false;
   }
 }
+
+export function normalizeDanbooruQuery(query) {
+  const normalized = String(query || '').trim();
+  if (!normalized) return 'hololive rating:g';
+  return /(?:^|\s)rating:(?:g|s|q|e|general|sensitive|questionable|explicit)(?:\s|$)/i.test(normalized)
+    ? normalized
+    : `${normalized} rating:g`;
+}
+
 function send(res, status, body, type = 'text/plain; charset=utf-8', headers = {}) { res.writeHead(status, { 'Content-Type': type, ...headers }); res.end(body); }
 
 async function fetchDanbooru(url) {
@@ -30,7 +39,7 @@ async function handler(req, res) {
     const query = requestUrl.searchParams.get('q')?.slice(0, 160).trim() || 'hololive';
     const page = Math.max(1, Math.min(1000, Number(requestUrl.searchParams.get('page')) || 1));
     const upstream = new URL('https://danbooru.donmai.us/posts.json');
-    upstream.search = new URLSearchParams({ tags: `${query} rating:g`, page: String(page), limit: '24' });
+    upstream.search = new URLSearchParams({ tags: normalizeDanbooruQuery(query), page: String(page), limit: '24' });
     try {
       const response = await fetchDanbooru(upstream);
       if (!response.ok) throw new Error(`Danbooru returned ${response.status}`);
@@ -74,9 +83,11 @@ async function handler(req, res) {
     const source = requestUrl.searchParams.get('url') || '';
     if (!isAllowedImageUrl(source)) return send(res, 400, 'Unsupported image URL.');
     try {
-      const response = await fetch(source, { headers: { 'User-Agent': 'HoloStudio/1.0 (personal art tool)' } });
+      const response = await fetch(source, { headers: { 'User-Agent': 'HoloStudio/1.0 (personal art tool)', Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8' } });
       if (!response.ok) throw new Error(`Image host returned ${response.status}`);
-      return send(res, 200, Buffer.from(await response.arrayBuffer()), response.headers.get('content-type') || 'image/jpeg', { 'Cache-Control': 'public, max-age=86400', 'Cross-Origin-Resource-Policy': 'same-origin' });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.toLowerCase().startsWith('image/')) throw new Error(`Image host returned non-image content (${contentType || 'unknown'})`);
+      return send(res, 200, Buffer.from(await response.arrayBuffer()), contentType, { 'Cache-Control': 'public, max-age=86400', 'Cross-Origin-Resource-Policy': 'same-origin' });
     } catch (error) {
       return send(res, 502, error.message);
     }
