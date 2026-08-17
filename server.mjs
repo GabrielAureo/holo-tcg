@@ -11,16 +11,9 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 export function isAllowedImageUrl(value) {
   try { const url = new URL(value); return url.protocol === 'https:' && allowedImageHosts.has(url.hostname); } catch { return false; }
 }
-export function isAuthorized(header, username = process.env.BASIC_AUTH_USER, password = process.env.BASIC_AUTH_PASSWORD) {
-  if (!username || !password) return true;
-  const encoded = header?.replace(/^Basic\s+/i, '');
-  const [givenUser, givenPassword] = Buffer.from(encoded || '', 'base64').toString().split(':');
-  return givenUser === username && givenPassword === password;
-}
 function send(res, status, body, type = 'text/plain; charset=utf-8', headers = {}) { res.writeHead(status, { 'Content-Type': type, ...headers }); res.end(body); }
 
 async function handler(req, res) {
-  if (!isAuthorized(req.headers.authorization)) return send(res, 401, 'Authentication required.', undefined, { 'WWW-Authenticate': 'Basic realm="Holo Studio"' });
   const requestUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   if (requestUrl.pathname === '/api/posts') {
     const query = requestUrl.searchParams.get('q')?.slice(0, 160) || 'hololive';

@@ -14,16 +14,15 @@ Open `http://localhost:4173`. The dependency-free Node server serves the app and
 
 ## Codespaces / public hosting
 
-This app needs its small Node server to proxy remote images (browser AI processing requires CORS-safe image bytes) and to apply Basic Auth. **GitHub Pages cannot securely provide either server-side proxying or Basic Auth**, so it is not a suitable public host for this build.
+This app needs its small Node server to proxy remote images because browser AI processing requires CORS-safe image bytes. **GitHub Pages cannot run this server-side proxy**, so it is not a suitable host for this build.
 
 In GitHub Codespaces:
 
 1. Build with `npm run build`.
-2. Create secrets named `BASIC_AUTH_USER` and `BASIC_AUTH_PASSWORD` (use a long random password).
-3. Run `npm start`.
-4. In the **Ports** tab, expose port `4173`. If you make it public, the app's own Basic Auth remains in front of every route.
+2. Run `npm start`.
+3. In the **Ports** tab, expose port `4173` and leave its visibility set to **Private**. Codespaces will require GitHub authentication before anyone can access it.
 
-For any container host, build the included `Dockerfile`, expose port `4173`, and set those same environment variables. The server permits unprotected local use when the variables are absent, but they should always be set on a public deployment.
+For any container host, build the included `Dockerfile` and expose port `4173`. The application does not implement authentication itself, so use the hosting platform's access controls and do not expose it publicly without an authentication layer.
 
 ## Content and privacy
 
