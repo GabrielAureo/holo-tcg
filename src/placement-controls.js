@@ -27,11 +27,12 @@ function fitArtworkToCard() {
   if (!artBg?.naturalWidth || !artBg?.naturalHeight || !cardShell) return;
 
   const rect = cardShell.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
+  const baseHeight = Number.parseFloat(getComputedStyle(artBg).height);
+  if (!rect.width || !rect.height || !baseHeight) return;
 
   const imageAspect = artBg.naturalWidth / artBg.naturalHeight;
-  const cardAspect = rect.width / rect.height;
-  const coverScale = Math.max(1, cardAspect / imageAspect);
+  const baseWidth = baseHeight * imageAspect;
+  const coverScale = Math.max(rect.width / baseWidth, rect.height / baseHeight);
   const min = Number(scaleInput?.min || 50) / 100;
   const max = Number(scaleInput?.max || 220) / 100;
   const scale = Math.max(min, Math.min(max, coverScale));
@@ -78,7 +79,7 @@ cardShell?.addEventListener('pointermove', (event) => {
 
 function endDrag(event) {
   if (!drag || drag.pointerId !== event.pointerId) return;
-  suppressNextClick = drag.active;
+  suppressNextClick = event.type === 'pointerup' && drag.active;
   cardShell.classList.remove('dragging-art');
   cardShell.releasePointerCapture?.(event.pointerId);
   drag = null;
@@ -97,6 +98,6 @@ cardShell?.addEventListener('click', (event) => {
 document.querySelector('#reset')?.addEventListener('click', () => {
   requestAnimationFrame(() => {
     centerArtwork();
-    dispatchInput(scaleInput, 100);
+    fitArtworkToCard();
   });
 });
