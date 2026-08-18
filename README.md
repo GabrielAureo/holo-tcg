@@ -4,7 +4,7 @@ Holo Studio is an experimental holographic trading-card composer built for the w
 
 It lets you browse character artwork from Danbooru, place it inside a collectible-card layout, apply interactive holographic effects, separate the subject from the background locally in the browser, and independently style the background and foreground layers.
 
-The project is intentionally small and easy to hack on: there is no framework, database, account system, or external backend service. The frontend is plain HTML/CSS/JavaScript and the server is a small dependency-free Node.js application.
+The repository is organized as a monorepo so the card data model, rendering layer, and Studio can evolve independently.
 
 > This is a personal/experimental project. Artwork displayed by the app belongs to its respective artists and source sites.
 
@@ -23,20 +23,106 @@ The project is intentionally small and easy to hack on: there is no framework, d
   - feather
   - expand / contract
 - Web Workers for expensive image-processing work.
-- Local image proxy so remote artwork can be safely consumed by browser-side processing.
-- Shareable card state through URL query parameters is currently being developed.
+- Local image proxy for browser-side image processing.
+- Shareable card state through URL query parameters is being developed.
+
+## Repository structure
+
+```text
+.
+├── apps/
+│   └── studio/                 # The interactive card editor
+│       ├── assets/
+│       ├── scripts/
+│       ├── src/
+│       ├── test/
+│       ├── index.html
+│       ├── package.json
+│       └── server.mjs
+│
+├── packages/
+│   ├── card-schema/            # Serializable card definition contract
+│   │   └── src/index.ts
+│   └── card-renderer/          # Reusable card rendering package
+│       └── src/index.ts
+│
+├── package.json                # npm workspace entry point
+├── Dockerfile
+└── README.md
+```
+
+The current Studio implementation remains in vanilla JavaScript while the rendering refactor is carried out incrementally. The monorepo boundary exists first so that the migration can happen without coupling the editor to the renderer.
+
+## Packages
+
+### `@holo/card-schema`
+
+Owns the serializable representation of a card.
+
+The long-term rule is that visual card state should be expressible as a `CardDefinition`, rather than being stored implicitly in DOM state.
+
+The initial schema includes:
+
+- artwork URL and display name;
+- artwork position and scale;
+- full-body / in-frame treatment;
+- subject-separation state;
+- mask settings;
+- background holo;
+- subject holo;
+- card back.
+
+Runtime-only values such as generated `blob:` URLs do not belong in the serialized definition.
+
+### `@holo/card-renderer`
+
+This package is the home for reusable card rendering.
+
+The intended boundary is simple:
+
+```text
+CardDefinition
+      ↓
+Card Renderer
+      ↓
+Rendered card
+```
+
+The renderer should consume card data and render it. Editing controls, artwork search, and provider-specific behavior belong in the Studio instead.
+
+The package is currently scaffolded; the existing visual implementation will be migrated into it incrementally.
+
+### `@holo/studio`
+
+The Studio is the editor application.
+
+It currently contains the existing working application, including:
+
+- Danbooru search and tag autocomplete;
+- artwork selection;
+- card controls;
+- holo controls;
+- subject separation;
+- mask refinement;
+- the Node proxy/server.
+
+As the refactor progresses, the Studio should increasingly become an editor for `CardDefinition` and delegate visual output to `@holo/card-renderer`.
 
 ## Tech stack
+
+Current implementation:
 
 - HTML
 - CSS
 - Vanilla JavaScript / ES modules
+- TypeScript for shared package contracts
 - Node.js 20+
+- npm workspaces
 - Web Workers
 - [IMG.LY background-removal-js](https://github.com/imgly/background-removal-js)
 - Danbooru API
 
-There is deliberately no frontend framework or build framework at the moment.
+The renderer/Studio migration is designed so React and Vite can be introduced without changing the serialized card contract.
 
 ## Getting started
 
@@ -45,11 +131,17 @@ There is deliberately no frontend framework or build framework at the moment.
 - Node.js 20 or newer
 - npm
 
-Clone the repository and start the development server:
+Clone the repository and install workspace dependencies:
 
 ```bash
 git clone https://github.com/GabrielAureo/holo-tcg.git
 cd holo-tcg
+npm install
+```
+
+Start the Studio from the repository root:
+
+```bash
 npm run dev
 ```
 
@@ -59,11 +151,13 @@ Then open:
 http://localhost:4173
 ```
 
-`npm run dev` also downloads the holographic texture assets the first time they are needed. Existing assets are reused on later runs.
+The root commands delegate to the `@holo/studio` workspace, so contributors normally do not need to `cd` into `apps/studio`.
 
-The first time subject separation is used, IMG.LY may also need to download its model assets, so the initial separation can take noticeably longer than subsequent runs.
+The first subject-separation run may need to download IMG.LY model assets and can take longer than subsequent runs.
 
 ## Useful commands
+
+Run these from the repository root:
 
 ```bash
 # Development server
@@ -72,13 +166,13 @@ npm run dev
 # Fetch/cache holographic assets
 npm run assets:holo
 
-# Create the static production bundle in dist/
+# Build the Studio
 npm run build
 
 # Run the production build
 npm start
 
-# Run tests
+# Run Studio tests
 npm test
 ```
 
@@ -88,53 +182,36 @@ The application listens on port `4173` by default. You can override it with:
 PORT=3000 npm run dev
 ```
 
-## Project structure
+## Current Studio architecture
+
+Most of the current application lives in `apps/studio/src`.
+
+Important files include:
 
 ```text
-.
-├── assets/
-│   ├── card-backs/          # Card-back artwork
-│   └── holo/                # Downloaded holographic textures
-├── scripts/
-│   ├── build.mjs            # Copies the app into dist/
-│   └── fetch-holo-assets.mjs
-├── src/
-│   ├── main.js              # Main application state and interactions
-│   ├── style.css            # Main UI/layout styles
-│   ├── holo.css             # Base holographic effects
-│   ├── holo-extra.css       # Additional holo recipes
-│   ├── holo-picker.js       # Holo-picker UI enhancements
-│   ├── flip.css             # Card flip styles
-│   ├── placement-controls.js
-│   ├── placement-controls.css
-│   ├── layered-controls.js  # Background/subject layer controls
-│   ├── layered-controls.css
-│   ├── background-worker.js # Subject separation worker
-│   └── mask-refine-worker.js# Subject-mask refinement worker
-├── index.html
-├── server.mjs               # Static server + Danbooru/image proxy API
-└── package.json
+apps/studio/src/main.js
+apps/studio/src/holo.css
+apps/studio/src/holo-extra.css
+apps/studio/src/layered-controls.js
+apps/studio/src/background-worker.js
+apps/studio/src/mask-refine-worker.js
 ```
 
-Some feature branches may contain additional modules that have not reached `main` yet.
+`main.js` currently owns much of the application state and UI. During the renderer refactor, visual state should move toward `CardDefinition` while DOM-specific rendering behavior moves toward `packages/card-renderer`.
 
-## Architecture
+## Danbooru integration
 
-The application has two main pieces.
+Provider-specific integration belongs to the Studio, not the renderer.
 
-### Browser
+All current Danbooru server integration lives in:
 
-Most of the application lives in the browser.
+```text
+apps/studio/server.mjs
+```
 
-`src/main.js` creates the UI, manages the selected artwork, card state, positioning, flipping, and communication with the background-removal worker.
+The frontend calls the local server rather than Danbooru directly.
 
-The browser also handles holographic rendering entirely with CSS and client-side pointer state.
-
-Image-processing work is moved into Web Workers so expensive operations do not block the UI.
-
-### Node server
-
-`server.mjs` serves the frontend and exposes a few small endpoints:
+Available endpoints:
 
 ```text
 GET /api/health
@@ -143,124 +220,87 @@ GET /api/tags
 GET /api/image
 ```
 
-There is no database and the server does not persist card state.
-
-## Danbooru integration
-
-All Danbooru integration lives in `server.mjs`.
-
-The frontend never calls Danbooru directly.
-
 ### Search
-
-The browser calls:
 
 ```text
 GET /api/posts?q=hololive&page=1
 ```
 
-The Node server converts that into a request to Danbooru's `posts.json` endpoint.
+The server translates the request to Danbooru's `posts.json` endpoint.
 
 ### Tag autocomplete
-
-The frontend calls:
 
 ```text
 GET /api/tags?q=tanya
 ```
 
-The server proxies Danbooru's autocomplete API and returns a simplified result to the frontend.
+The server proxies Danbooru's autocomplete endpoint and returns a simplified response.
 
 ### Images
-
-Remote artwork is loaded through:
 
 ```text
 GET /api/image?url=...
 ```
 
-The proxy is intentionally restricted to HTTPS URLs from `donmai.us` and its subdomains.
+The image proxy is restricted to HTTPS URLs from `donmai.us` and its subdomains.
 
-This proxy exists because subject separation needs access to the actual image bytes. Loading the artwork directly from a third-party origin would make browser-side processing much more painful because of CORS restrictions.
+The proxy is needed because client-side image processing requires access to the actual image bytes without cross-origin restrictions getting in the way.
 
 ## Subject separation
 
-Subject separation runs locally in the user's browser.
+Subject separation happens locally in the browser.
 
-The basic flow is:
+Current flow:
 
 ```text
-Danbooru image
+remote image
     ↓
 /api/image proxy
     ↓
-main.js
+Studio
     ↓
 background-worker.js
     ↓
 IMG.LY background removal
     ↓
 foreground Blob
-    ↓
-art-subject layer
 ```
 
-The generated foreground is represented by a browser-local `blob:` URL. It is not uploaded to another image-processing service.
+The generated foreground uses a browser-local `blob:` URL and is not uploaded to another image-processing service.
 
-After separation, `layered-controls.js` allows the background and subject to use different holographic effects.
+Mask refinement runs in `mask-refine-worker.js` and supports threshold, feather, and expand/contract settings.
 
-The mask can also be refined in `mask-refine-worker.js` using threshold, feather, and expand/contract values.
+For serialized cards, only the fact that separation was requested and the settings needed to reproduce it should be persisted. Generated blobs are runtime state.
 
 ## Holographic effects
 
-The visual card effects are primarily CSS-based.
+The current visual effects are primarily CSS-based.
 
-The important files are:
-
-```text
-src/holo.css
-src/holo-extra.css
-```
-
-Effects use gradients, blend modes, masks, background textures, filters, and CSS custom properties controlled by pointer movement.
-
-If you are adding a new holo style, these are the first files to inspect.
-
-## Shareable card URLs
-
-A work-in-progress feature serializes card configuration into URL query parameters so a configured card can be shared with another user.
-
-The goal is to persist reproducible state such as:
+The main files are:
 
 ```text
-image
-card name
-background holo
-subject holo
-card back
-art mode
-x/y position
-scale
-whether the subject was separated
-mask threshold
-mask feather
-mask expand/contract
+apps/studio/src/holo.css
+apps/studio/src/holo-extra.css
 ```
 
-Separated foreground images themselves are not intended to be stored in the URL. Instead, a shared URL can describe that separation was enabled and the receiving browser can reproduce the separation locally from the original image.
+Effects use gradients, blend modes, masks, textures, filters, and CSS custom properties driven by pointer movement.
+
+These effects will move behind the renderer boundary as the refactor progresses.
 
 ## Contributing
 
 Contributions are welcome.
 
-For anything larger than a tiny fix, create a branch and open a pull request rather than pushing directly to `main`.
+For anything larger than a tiny fix, create a branch and open a pull request instead of pushing directly to `main`.
 
-A simple workflow:
+A typical workflow:
 
 ```bash
 git checkout main
 git pull
 git checkout -b your-feature-name
+
+npm install
 
 # make changes
 
@@ -272,41 +312,22 @@ git commit -m "Describe your change"
 git push -u origin your-feature-name
 ```
 
-Then open a pull request against `main`.
-
 When changing visual effects, screenshots or short recordings in the PR are especially useful.
 
-When changing subject separation or masks, test with several types of artwork: detailed hair, transparent areas, bright backgrounds, dark backgrounds, and characters touching the edge of the image tend to expose problems quickly.
+When changing subject separation or masks, test with several kinds of artwork. Detailed hair, transparent areas, bright or dark backgrounds, and subjects touching image edges tend to expose problems quickly.
 
-## Good places to contribute
+## Codespaces
 
-Some areas that are relatively self-contained:
-
-- New holographic effect recipes.
-- Better card templates and card backs.
-- Improved mask controls.
-- Subject-separation quality improvements.
-- Shareable URL/card-state improvements.
-- Better mobile layout.
-- Exporting cards as images or video.
-- Additional artwork providers behind the existing server abstraction.
-- Tests around server endpoints and state restoration.
-
-## Development notes
-
-### Codespaces
-
-The app works well in GitHub Codespaces because it only needs Node.js and a forwarded port.
-
-Run:
+The project works in GitHub Codespaces with the same root-level commands:
 
 ```bash
+npm install
 npm run dev
 ```
 
-Then expose port `4173` from the Codespaces **Ports** tab.
+Expose port `4173` from the **Ports** tab.
 
-Use `/api/health` to verify that the forwarded URL is reaching the Holo Studio server:
+To verify the forwarded URL is reaching the Studio server, open:
 
 ```text
 https://<codespace>-4173.app.github.dev/api/health
@@ -318,11 +339,11 @@ Expected response:
 {"ok":true}
 ```
 
-### Production hosting
+## Production hosting
 
-The project needs the Node server for the Danbooru APIs and image proxy, so plain GitHub Pages is not enough for the current architecture.
+The Studio requires its Node server for provider APIs and the image proxy, so plain GitHub Pages is not enough for the current architecture.
 
-Any Node/container host should work. A production build can be created with:
+A production build can be created from the repository root with:
 
 ```bash
 npm run build
@@ -335,7 +356,7 @@ Background removal and mask refinement happen locally in the browser.
 
 The selected image is fetched through this project's proxy but is not sent to an additional background-removal API.
 
-Artwork remains the property of its original artists and licensors. This repository does not grant rights to redistribute artwork returned by Danbooru.
+Artwork remains the property of its original artists and licensors. This repository does not grant rights to redistribute artwork returned by external providers.
 
 Before using the project commercially, review the licenses and terms for IMG.LY, Danbooru, the holographic texture assets, and any artwork shown by the application.
 
