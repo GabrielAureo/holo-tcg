@@ -1,0 +1,112 @@
+/*
+ * Holo effect recipes adapted from Simey de Klerk's public MIT-licensed
+ * "Pokemon Cards Holo effect v2" CodePen: https://codepen.io/simeydotme/pen/abYWJdX
+ * Texture assets are fetched into /assets/holo by scripts/fetch-holo-assets.mjs.
+ */
+.card{
+  --posx:50%;
+  --posy:50%;
+  --hyp:0;
+  --grain:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjciIG51bU9jdGF2ZXM9IjEwIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwMDAiLz48cmVjdCB3aWR0aD0iNTAwIiBoZWlnaHQ9IjUwMCIgZmlsdGVyPSJ1cmwoI24pIiBvcGFjaXR5PSIuMyIvPjwvc3ZnPg==");
+}
+.card .art-layer{
+  position:absolute;left:var(--art-x);top:var(--art-y);width:auto;height:78%;max-width:none;
+  object-fit:contain;transform:translate(-50%,-50%) scale(var(--art-scale));transition:height .25s;pointer-events:none;
+}
+.card .art-background{z-index:2;filter:saturate(.92) contrast(1.03)}
+.card .art-subject{z-index:6;filter:saturate(1.02) contrast(1.03) drop-shadow(0 5px 7px #0006)}
+.card .art-subject[hidden]{display:none}.card.in-frame .art-layer{height:100%}
+.card .card-foil,.card .card-foil::after{position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+.card .card-foil{z-index:4;opacity:.82;mix-blend-mode:color-dodge}
+.card .card-foil::after{content:""}
+.card .card-glare{z-index:7;background-image:radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(222,245,250,.7) 10%,rgba(255,255,255,.45) 20%,rgba(0,0,0,.5) 90%);mix-blend-mode:overlay;opacity:.72}
+.card .card-copy{z-index:9}
+
+/* CodePen: rare holo */
+.card[data-foil="classic"] .card-foil{
+  --space:2px;--h:21;--s:70%;--l:50%;--bars:24px;--bar-color:rgba(255,255,255,.6);--bar-bg:rgb(10,10,10);
+  background-image:
+    repeating-linear-gradient(90deg,
+      hsl(calc(var(--h)*0),var(--s),var(--l)) calc(var(--space)*0),hsl(calc(var(--h)*0),var(--s),var(--l)) calc(var(--space)*1),#000 calc(var(--space)*1.001),#000 calc(var(--space)*1.999),
+      hsl(calc(var(--h)*1),var(--s),var(--l)) calc(var(--space)*2),hsl(calc(var(--h)*1),var(--s),var(--l)) calc(var(--space)*3),#000 calc(var(--space)*3.001),#000 calc(var(--space)*3.999),
+      hsl(calc(var(--h)*2),var(--s),var(--l)) calc(var(--space)*4),hsl(calc(var(--h)*2),var(--s),var(--l)) calc(var(--space)*5),#000 calc(var(--space)*5.001),#000 calc(var(--space)*5.999),
+      hsl(calc(var(--h)*3),var(--s),var(--l)) calc(var(--space)*6),hsl(calc(var(--h)*3),var(--s),var(--l)) calc(var(--space)*7),#000 calc(var(--space)*7.001),#000 calc(var(--space)*7.999),
+      hsl(calc(var(--h)*4),var(--s),var(--l)) calc(var(--space)*8),hsl(calc(var(--h)*4),var(--s),var(--l)) calc(var(--space)*9),#000 calc(var(--space)*9.001),#000 calc(var(--space)*9.999),
+      hsl(calc(var(--h)*5),var(--s),var(--l)) calc(var(--space)*10),hsl(calc(var(--h)*5),var(--s),var(--l)) calc(var(--space)*11),#000 calc(var(--space)*11.001),#000 calc(var(--space)*11.999),
+      hsl(calc(var(--h)*6),var(--s),var(--l)) calc(var(--space)*12),hsl(calc(var(--h)*6),var(--s),var(--l)) calc(var(--space)*13),#000 calc(var(--space)*13.001),#000 calc(var(--space)*13.999),
+      hsl(calc(var(--h)*7),var(--s),var(--l)) calc(var(--space)*14),hsl(calc(var(--h)*7),var(--s),var(--l)) calc(var(--space)*15),#000 calc(var(--space)*15.001),#000 calc(var(--space)*15.999)),
+    repeating-linear-gradient(90deg,var(--bar-bg) calc(var(--bars)*2),var(--bar-color) calc(var(--bars)*3),var(--bar-bg) calc(var(--bars)*3.5),var(--bar-color) calc(var(--bars)*4),var(--bar-bg) calc(var(--bars)*5),var(--bar-bg) calc(var(--bars)*9)),
+    radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(230,230,230,.85) 0%,rgba(200,200,200,.1) 25%,#000 90%);
+  background-blend-mode:soft-light,screen,overlay;
+  background-position:calc(var(--posx)*-1.2) var(--posy),var(--posx) var(--posy),center;
+  background-size:237% 237%,195% 195%,120% 120%;
+  filter:brightness(calc((var(--hyp) + .7)*.7)) contrast(3.2) saturate(.66);
+}
+
+/* CodePen: rare holo galaxy */
+.card[data-foil="galaxy"] .card-foil{
+  --space:80px;
+  background-image:
+    url("/assets/holo/galaxy.png"),url("/assets/holo/galaxy.png"),url("/assets/holo/galaxy.png"),
+    repeating-linear-gradient(82deg,rgb(218,56,50) calc(var(--space)*1),rgb(219,204,86) calc(var(--space)*2),rgb(121,199,58) calc(var(--space)*3),rgb(58,192,183) calc(var(--space)*4),rgb(71,98,207) calc(var(--space)*5),rgb(170,69,209) calc(var(--space)*6),rgb(218,56,50) calc(var(--space)*10)),
+    radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(255,255,255,.6) 5%,rgba(150,150,150,.3) 40%,#000 100%);
+  background-blend-mode:color-dodge,color-burn,saturation,screen;
+  background-position:center,center,center,calc(((50% - var(--posx))*2.5) + 50%) calc(((50% - var(--posy))*2.5) + 50%),center;
+  background-size:cover,cover,cover,600% 1200%,cover;
+  filter:brightness(.75) contrast(1.2) saturate(1.5);
+  mix-blend-mode:color-dodge;
+}
+
+/* CodePen: rare holo VMAX */
+.card[data-foil="prism"] .card-foil{
+  --space:6%;--angle:133deg;--imgsize:60% 30%;
+  background-image:
+    url("/assets/holo/vmaxbg.webp"),
+    repeating-linear-gradient(-33deg,rgb(206,42,36) calc(var(--space)*1),rgb(157,170,223) calc(var(--space)*2),rgb(45,153,146) calc(var(--space)*3),rgb(29,151,36) calc(var(--space)*4),rgb(181,64,228) calc(var(--space)*5),rgb(206,42,36) calc(var(--space)*6)),
+    repeating-linear-gradient(var(--angle),rgba(14,21,46,.5) 0%,hsl(180,10%,50%) 2.5%,hsl(83,50%,35%) 5%,hsl(180,10%,50%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
+    radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(6,218,255,.6) 0%,rgba(38,235,127,.6) 25%,rgba(155,78,228,.6) 50%,rgba(228,78,90,.6) 75%);
+  background-blend-mode:color-burn,screen,soft-light;
+  background-size:var(--imgsize),1100% 1100%,600% 600%,200% 200%;
+  background-position:center,0% var(--posy),var(--posx) var(--posy),var(--posx) var(--posy);
+  filter:brightness(calc((var(--hyp)*.3) + .5)) contrast(2.5) saturate(.6);
+}
+
+/* CodePen: rare rainbow */
+.card[data-foil="fullart"] .card-foil,
+.card[data-foil="fullart"] .card-foil::after{
+  --space:7%;--angle:-20deg;--angle2:130deg;--imgsize:540px 700px;
+  background-image:
+    url("/assets/holo/rainbow2.jpg"),
+    repeating-linear-gradient(var(--angle),rgb(253,71,65) calc(var(--space)*1),rgb(255,243,151) calc(var(--space)*2),rgba(168,255,95,1) calc(var(--space)*3),rgba(131,255,247,1) calc(var(--space)*4),rgb(75,198,255) calc(var(--space)*5),rgb(255,73,246) calc(var(--space)*6),rgb(255,56,49) calc(var(--space)*7)),
+    repeating-linear-gradient(var(--angle2),rgba(89,46,80,.5) 0%,hsl(118,43%,76%) 2.5%,rgb(223,96,202) 5%,hsl(180,57%,56%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
+    url("/assets/holo/illusion2.webp");
+  background-size:50% 50%,500% 500%,1000% 1000%,var(--imgsize);
+  background-position:center,0% calc(var(--posy)*1.5),var(--posx) var(--posy),center;
+  background-blend-mode:color-burn,soft-light,normal;
+  filter:brightness(calc((var(--hyp)*.25) + .66)) contrast(2) saturate(.95);
+}
+.card[data-foil="fullart"] .card-foil::after{
+  background-position:center,0% calc(var(--posy)*-1),calc(var(--posx)*-1) calc(var(--posy)*-1),center;
+  mix-blend-mode:exclusion;
+}
+
+/* CodePen: rare secret / metallic gold */
+.card[data-foil="gold"] .card-foil{
+  --angle:110deg;--imgsize:30%;
+  background-image:
+    url("/assets/holo/rainbow2.jpg"),
+    repeating-linear-gradient(var(--angle),rgba(89,46,80,.5) 0%,hsl(39,37%,60%) 2.5%,rgb(216,183,92) 5%,hsl(39,37%,60%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
+    url("/assets/holo/metal.webp");
+  background-size:50% 50%,600% 600%,var(--imgsize);
+  background-position:center,var(--posx) var(--posy),center;
+  background-blend-mode:color-burn,darken;
+  filter:brightness(calc((var(--hyp)*.4) + .7)) contrast(3) saturate(.66);
+}
+.card[data-foil="gold"] .card-foil::after{
+  background-image:url("/assets/holo/rainbow2.jpg"),repeating-linear-gradient(var(--angle),rgba(89,46,80,.5) 0%,hsl(39,37%,60%) 2.5%,rgb(216,183,92) 5%,hsl(39,37%,60%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%);
+  background-size:50% 50%,600% 600%;background-position:center,calc(var(--posx)*-1) calc(var(--posy)*-1);filter:brightness(calc((var(--hyp)*.3) + .7)) contrast(2.5) saturate(.66);mix-blend-mode:exclusion;
+}
+
+.foil-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.foil-option{min-height:38px;border:1px solid #30333e;background:#11131b;color:#777b87;padding:8px;text-align:left;font:9px DM Mono;cursor:pointer}
+.foil-option.active{border-color:var(--acid);color:#f1f2f5;background:#191b24}
