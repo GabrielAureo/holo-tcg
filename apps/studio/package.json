@@ -1,0 +1,19 @@
+{
+  "name": "@holo/studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets:holo": "node scripts/fetch-holo-assets.mjs",
+    "predev": "npm run assets:holo",
+    "dev": "NODE_ENV=development node server.mjs",
+    "prebuild": "npm run assets:holo",
+    "build": "node scripts/build.mjs",
+    "prestart": "npm run assets:holo",
+    "start": "NODE_ENV=production node server.mjs",
+    "test": "NODE_ENV=test node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
