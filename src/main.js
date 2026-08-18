@@ -13,7 +13,7 @@ app.innerHTML = `
     <section class="intro">
       <p class="eyebrow">Holographic card composer</p>
       <h1>Turn character art into<br><em>a collectible moment.</em></h1>
-      <p>Browse anime artwork, separate its subject locally, and layer physical-inspired foil between foreground and background.</p>
+      <p>Browse anime artwork, separate its subject locally, and apply interactive holographic finishes.</p>
     </section>
     <div class="workspace">
       <aside class="panel library">
@@ -50,8 +50,8 @@ app.innerHTML = `
           <div class="foil-picker">
             <button type="button" class="foil-option active" data-foil="classic">Classic</button>
             <button type="button" class="foil-option" data-foil="galaxy">Galaxy</button>
-            <button type="button" class="foil-option" data-foil="prism">Prism</button>
-            <button type="button" class="foil-option" data-foil="fullart">Full Art</button>
+            <button type="button" class="foil-option" data-foil="prism">VMAX</button>
+            <button type="button" class="foil-option" data-foil="fullart">Rainbow</button>
             <button type="button" class="foil-option" data-foil="gold">Gold</button>
           </div>
         </fieldset>
@@ -60,8 +60,7 @@ app.innerHTML = `
         <div class="control"><label for="x">Horizontal <output id="x-out">50%</output></label><input id="x" type="range" min="0" max="100" value="50"></div>
         <div class="control"><label for="y">Vertical <output id="y-out">48%</output></label><input id="y" type="range" min="0" max="100" value="48"></div>
         <button id="separate-subject" class="primary" disabled><span>✦</span> Separate subject</button>
-        <p id="process-note" class="process-note">Choose art, then separate its foreground locally in your browser.</p>
-        <div class="layer-note"><strong>Layer stack:</strong> original artwork → foil → separated subject → glare.</div>
+        <p id="process-note" class="process-note"></p>
         <button id="reset" class="secondary">Reset placement</button>
       </aside>
     </div>
@@ -75,6 +74,34 @@ const artSubject = $('#art-subject');
 const tagInput = $('#tag-input');
 const tagSuggestions = $('#tag-suggestions');
 const separateButton = $('#separate-subject');
+
+let workerSequence = 0;
+const pendingWorkerJobs = new Map();
+const backgroundWorker = new Worker('/src/background-worker.js', { type: 'module' });
+
+backgroundWorker.addEventListener('message', (event) => {
+  const { type, id, buffer, contentType, message } = event.data || {};
+  const job = pendingWorkerJobs.get(id);
+  if (!job) return;
+
+  if (type === 'progress') return;
+  pendingWorkerJobs.delete(id);
+  if (type === 'done') job.resolve(new Blob([buffer], { type: contentType || 'image/png' }));
+  else job.reject(new Error(message || 'Subject separation failed'));
+});
+
+backgroundWorker.addEventListener('error', (event) => {
+  for (const job of pendingWorkerJobs.values()) job.reject(new Error(event.message || 'Background worker failed'));
+  pendingWorkerJobs.clear();
+});
+
+function separateInWorker(buffer, contentType) {
+  const id = ++workerSequence;
+  return new Promise((resolve, reject) => {
+    pendingWorkerJobs.set(id, { resolve, reject });
+    backgroundWorker.postMessage({ id, buffer, contentType }, [buffer]);
+  });
+}
 
 function proxied(url) { return url ? `/api/image?url=${encodeURIComponent(url)}` : ''; }
 function friendlyName(post) {
@@ -146,7 +173,7 @@ function selectPost(post) {
   $('#card-name').textContent = friendlyName(post);
   separateButton.disabled = false;
   separateButton.innerHTML = '<span>✦</span> Separate subject';
-  $('#process-note').textContent = 'Ready to separate foreground and keep the original artwork underneath.';
+  $('#process-note').textContent = '';
   renderPosts(); applyPlacement();
 }
 function applyPlacement() {
@@ -177,28 +204,47 @@ $('#reset').addEventListener('click', () => { Object.assign(state, { x: 50, y: 4
 
 separateButton.addEventListener('click', async () => {
   if (!state.selected || state.processing) return;
-  state.processing = true; separateButton.disabled = true; separateButton.innerHTML = '<span class="spinner"></span> Separating subject…'; $('#process-note').textContent = 'Fetching source image…';
+  const selectedId = state.selected.id;
+  state.processing = true;
+  separateButton.disabled = true;
+  separateButton.innerHTML = '<span class="spinner"></span> Separating…';
+  $('#process-note').textContent = '';
+
   try {
     const imageResponse = await fetch(proxied(postImage(state.selected)), { credentials: 'same-origin' });
     if (!imageResponse.ok) throw new Error(`Image proxy returned ${imageResponse.status}`);
     const contentType = imageResponse.headers.get('content-type') || '';
     if (!contentType.toLowerCase().startsWith('image/')) throw new Error(`Expected image data but received ${contentType || 'unknown content type'}`);
-    const imageBlob = await imageResponse.blob();
-    $('#process-note').textContent = 'Loading the local segmentation model…';
-    const module = await import(/* @vite-ignore */ 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm');
-    const removeBackground = module.removeBackground || module.default;
-    if (typeof removeBackground !== 'function') throw new Error('Background-removal module did not expose a remover function');
-    const blob = await removeBackground(imageBlob, { progress: (_key, current, total) => { if (total) $('#process-note').textContent = `Loading segmentation model · ${Math.round(current / total * 100)}%`; } });
-    clearSubject(); state.cutoutUrl = URL.createObjectURL(blob); artSubject.src = state.cutoutUrl; artSubject.hidden = false; artSubject.alt = `${friendlyName(state.selected)} foreground`; card.classList.add('has-subject');
-    $('#process-note').textContent = 'Subject separated. Strong foil now sits behind it while glare remains above.';
+
+    const inputBuffer = await imageResponse.arrayBuffer();
+    const blob = await separateInWorker(inputBuffer, contentType);
+    if (!state.selected || state.selected.id !== selectedId) return;
+
+    clearSubject();
+    state.cutoutUrl = URL.createObjectURL(blob);
+    artSubject.src = state.cutoutUrl;
+    artSubject.hidden = false;
+    artSubject.alt = `${friendlyName(state.selected)} foreground`;
+    card.classList.add('has-subject');
     separateButton.innerHTML = '<span>✦</span> Separate again';
-  } catch (error) { $('#process-note').textContent = `Could not separate subject: ${error.message}`; separateButton.innerHTML = '<span>✦</span> Try separation again'; }
-  state.processing = false; separateButton.disabled = false;
+  } catch (error) {
+    $('#process-note').textContent = `Could not separate subject: ${error.message}`;
+    separateButton.innerHTML = '<span>✦</span> Try again';
+  } finally {
+    state.processing = false;
+    separateButton.disabled = !state.selected;
+  }
 });
 
 function tilt(event) {
-  const rect = card.getBoundingClientRect(); const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)); const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
-  card.style.setProperty('--mx', `${x * 100}%`); card.style.setProperty('--my', `${y * 100}%`); card.style.setProperty('--rx', `${(0.5 - y) * 12}deg`); card.style.setProperty('--ry', `${(x - 0.5) * 12}deg`);
+  const rect = card.getBoundingClientRect();
+  const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+  const cx = x - .5; const cy = y - .5; const hyp = Math.min(1, Math.sqrt(cx * cx + cy * cy) / .7071);
+  card.style.setProperty('--mx', `${x * 100}%`); card.style.setProperty('--my', `${y * 100}%`);
+  card.style.setProperty('--posx', `${x * 100}%`); card.style.setProperty('--posy', `${y * 100}%`); card.style.setProperty('--hyp', hyp);
+  card.style.setProperty('--rx', `${(0.5 - y) * 12}deg`); card.style.setProperty('--ry', `${(x - 0.5) * 12}deg`);
 }
-card.addEventListener('pointermove', tilt); card.addEventListener('pointerleave', () => { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); });
+card.addEventListener('pointermove', tilt);
+card.addEventListener('pointerleave', () => { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); });
 applyPlacement(); loadPosts();
