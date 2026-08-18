@@ -1,5 +1,5 @@
 const state = {
-  posts: [], selected: null, page: 1, x: 50, y: 48, scale: 1, mode: 'full', foil: 'classic',
+  posts: [], selected: null, page: 1, x: 50, y: 48, scale: 1, mode: 'full', foil: 'classic', back: 'aurora', flipped: false,
   cutoutUrl: '', processing: false, tags: ['hololive', 'solo'], suggestions: [], suggestionTimer: null,
 };
 
@@ -33,15 +33,22 @@ app.innerHTML = `
       </aside>
 
       <section class="stage" aria-label="Card preview">
-        <div id="card" class="card" data-foil="classic" tabindex="0">
-          <div class="card-backdrop"></div><div class="card-rays"></div>
-          <img id="art-bg" class="art-layer art-background" alt="Selected artwork background">
-          <div class="card-foil"></div>
-          <img id="art-subject" class="art-layer art-subject" alt="Separated foreground subject" hidden>
-          <div class="card-glare"></div>
-          <div class="card-copy"><span class="serial">HS–001</span><div><span class="rarity">PRISMATIC</span><h3 id="card-name">SELECT AN ARTWORK</h3></div></div>
+        <div id="card-shell" class="card-shell" tabindex="0" role="button" aria-label="Flip card" aria-pressed="false">
+          <div id="card-rotator" class="card-rotator">
+            <div id="card" class="card card-face card-front" data-foil="classic">
+              <div class="card-backdrop"></div><div class="card-rays"></div>
+              <img id="art-bg" class="art-layer art-background" alt="Selected artwork background">
+              <div class="card-foil"></div>
+              <img id="art-subject" class="art-layer art-subject" alt="Separated foreground subject" hidden>
+              <div class="card-glare"></div>
+              <div class="card-copy"><span class="serial">HS–001</span><div><span class="rarity">PRISMATIC</span><h3 id="card-name">SELECT AN ARTWORK</h3></div></div>
+            </div>
+            <div id="card-back" class="card-face card-back" aria-hidden="true">
+              <img id="card-back-image" src="/assets/card-backs/aurora.svg" alt="Aurora card back">
+            </div>
+          </div>
         </div>
-        <p class="hint">Move your pointer across the card to shift the light</p>
+        <p class="hint">Move to shift the light · click to flip</p>
       </section>
 
       <aside class="panel controls">
@@ -53,6 +60,14 @@ app.innerHTML = `
             <button type="button" class="foil-option" data-foil="prism">VMAX</button>
             <button type="button" class="foil-option" data-foil="fullart">Rainbow</button>
             <button type="button" class="foil-option" data-foil="gold">Gold</button>
+          </div>
+        </fieldset>
+        <fieldset><legend>Card back</legend>
+          <div class="back-picker">
+            <button type="button" class="back-option active" data-back="aurora"><img src="/assets/card-backs/aurora.svg" alt=""><span>Aurora</span></button>
+            <button type="button" class="back-option" data-back="cosmic"><img src="/assets/card-backs/cosmic.svg" alt=""><span>Cosmic</span></button>
+            <button type="button" class="back-option" data-back="gold"><img src="/assets/card-backs/gold.svg" alt=""><span>Gold</span></button>
+            <button type="button" class="back-option" data-back="minimal"><img src="/assets/card-backs/minimal.svg" alt=""><span>Minimal</span></button>
           </div>
         </fieldset>
         <fieldset><legend>Art treatment</legend><div class="segmented"><button class="active" data-mode="full">Full body</button><button data-mode="frame">In frame</button></div></fieldset>
@@ -69,6 +84,8 @@ app.innerHTML = `
 const $ = (selector) => document.querySelector(selector);
 const gallery = $('#gallery');
 const card = $('#card');
+const cardShell = $('#card-shell');
+const cardBackImage = $('#card-back-image');
 const artBg = $('#art-bg');
 const artSubject = $('#art-subject');
 const tagInput = $('#tag-input');
@@ -83,18 +100,15 @@ backgroundWorker.addEventListener('message', (event) => {
   const { type, id, buffer, contentType, message } = event.data || {};
   const job = pendingWorkerJobs.get(id);
   if (!job) return;
-
   if (type === 'progress') return;
   pendingWorkerJobs.delete(id);
   if (type === 'done') job.resolve(new Blob([buffer], { type: contentType || 'image/png' }));
   else job.reject(new Error(message || 'Subject separation failed'));
 });
-
 backgroundWorker.addEventListener('error', (event) => {
   for (const job of pendingWorkerJobs.values()) job.reject(new Error(event.message || 'Background worker failed'));
   pendingWorkerJobs.clear();
 });
-
 function separateInWorker(buffer, contentType) {
   const id = ++workerSequence;
   return new Promise((resolve, reject) => {
@@ -113,8 +127,7 @@ function postImage(post) { return post.large_file_url || post.file_url || post.p
 function currentQuery() { return state.tags.join(' ').trim(); }
 
 function renderTags() {
-  $('#tag-chips').innerHTML = state.tags.map((tag, index) => `
-    <button type="button" class="tag-chip" data-remove-tag="${index}" title="Remove ${tag}"><span>${tag}</span><b aria-hidden="true">×</b></button>`).join('');
+  $('#tag-chips').innerHTML = state.tags.map((tag, index) => `<button type="button" class="tag-chip" data-remove-tag="${index}" title="Remove ${tag}"><span>${tag}</span><b aria-hidden="true">×</b></button>`).join('');
 }
 function addTag(rawTag) {
   const tag = String(rawTag || '').trim().replace(/\s+/g, '_');
@@ -125,8 +138,7 @@ function removeTag(index) { state.tags.splice(index, 1); renderTags(); tagInput.
 function hideSuggestions() { state.suggestions = []; tagSuggestions.hidden = true; tagSuggestions.innerHTML = ''; }
 function renderTagSuggestions() {
   if (!state.suggestions.length) return hideSuggestions();
-  tagSuggestions.innerHTML = state.suggestions.map((item, index) => `
-    <button type="button" class="tag-suggestion" data-suggestion="${index}"><span>${item.name}</span>${item.post_count != null ? `<small>${Number(item.post_count).toLocaleString()}</small>` : ''}</button>`).join('');
+  tagSuggestions.innerHTML = state.suggestions.map((item, index) => `<button type="button" class="tag-suggestion" data-suggestion="${index}"><span>${item.name}</span>${item.post_count != null ? `<small>${Number(item.post_count).toLocaleString()}</small>` : ''}</button>`).join('');
   tagSuggestions.hidden = false;
 }
 async function loadTagSuggestions(value) {
@@ -141,9 +153,7 @@ async function loadTagSuggestions(value) {
 function renderPosts() {
   gallery.innerHTML = state.posts.map((post, index) => {
     const preview = postPreview(post);
-    return `<button class="thumb ${state.selected?.id === post.id ? 'selected' : ''}" data-index="${index}" aria-label="Use ${friendlyName(post)}">
-      ${preview ? `<img src="${proxied(preview)}" loading="lazy" alt="${friendlyName(post)}">` : '<div class="thumb-missing">NO IMAGE</div>'}
-      <span>${post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>`;
+    return `<button class="thumb ${state.selected?.id === post.id ? 'selected' : ''}" data-index="${index}" aria-label="Use ${friendlyName(post)}">${preview ? `<img src="${proxied(preview)}" loading="lazy" alt="${friendlyName(post)}">` : '<div class="thumb-missing">NO IMAGE</div>'}<span>${post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>`;
   }).join('') || '<div class="empty">No results. Try fewer tags.</div>';
   gallery.querySelectorAll('.thumb').forEach((button) => button.addEventListener('click', () => selectPost(state.posts[Number(button.dataset.index)])));
   gallery.querySelectorAll('.thumb img').forEach((image) => image.addEventListener('error', () => image.replaceWith(Object.assign(document.createElement('div'), { className: 'thumb-missing', textContent: 'IMAGE FAILED' })), { once: true }));
@@ -160,6 +170,11 @@ async function loadPosts(append = false) {
   $('#more').disabled = false;
 }
 
+function setFlipped(flipped) {
+  state.flipped = flipped;
+  cardShell.classList.toggle('flipped', flipped);
+  cardShell.setAttribute('aria-pressed', String(flipped));
+}
 function clearSubject() {
   if (state.cutoutUrl) URL.revokeObjectURL(state.cutoutUrl);
   state.cutoutUrl = '';
@@ -168,7 +183,7 @@ function clearSubject() {
   card.classList.remove('has-subject');
 }
 function selectPost(post) {
-  clearSubject(); state.selected = post;
+  clearSubject(); state.selected = post; setFlipped(false);
   artBg.src = proxied(postImage(post)); artBg.alt = friendlyName(post);
   $('#card-name').textContent = friendlyName(post);
   separateButton.disabled = false;
@@ -179,6 +194,8 @@ function selectPost(post) {
 function applyPlacement() {
   card.style.setProperty('--art-x', `${state.x}%`); card.style.setProperty('--art-y', `${state.y}%`); card.style.setProperty('--art-scale', state.scale);
   card.classList.toggle('in-frame', state.mode === 'frame'); card.dataset.foil = state.foil;
+  cardBackImage.src = `/assets/card-backs/${state.back}.svg`;
+  cardBackImage.alt = `${state.back} card back`;
   $('#scale-out').value = `${Math.round(state.scale * 100)}%`; $('#x-out').value = `${state.x}%`; $('#y-out').value = `${state.y}%`;
 }
 
@@ -198,6 +215,10 @@ $('.foil-picker').addEventListener('click', (event) => {
   const button = event.target.closest('[data-foil]'); if (!button) return;
   state.foil = button.dataset.foil; document.querySelectorAll('.foil-option').forEach((item) => item.classList.toggle('active', item === button)); applyPlacement();
 });
+$('.back-picker').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-back]'); if (!button) return;
+  state.back = button.dataset.back; document.querySelectorAll('.back-option').forEach((item) => item.classList.toggle('active', item === button)); applyPlacement();
+});
 $('.segmented').addEventListener('click', (event) => { if (!event.target.dataset.mode) return; state.mode = event.target.dataset.mode; document.querySelectorAll('.segmented button').forEach((button) => button.classList.toggle('active', button === event.target)); applyPlacement(); });
 ['scale', 'x', 'y'].forEach((id) => $(`#${id}`).addEventListener('input', (event) => { state[id] = id === 'scale' ? Number(event.target.value) / 100 : Number(event.target.value); applyPlacement(); }));
 $('#reset').addEventListener('click', () => { Object.assign(state, { x: 50, y: 48, scale: 1 }); $('#scale').value = 100; $('#x').value = 50; $('#y').value = 48; applyPlacement(); });
@@ -205,46 +226,39 @@ $('#reset').addEventListener('click', () => { Object.assign(state, { x: 50, y: 4
 separateButton.addEventListener('click', async () => {
   if (!state.selected || state.processing) return;
   const selectedId = state.selected.id;
-  state.processing = true;
-  separateButton.disabled = true;
-  separateButton.innerHTML = '<span class="spinner"></span> Separating…';
-  $('#process-note').textContent = '';
-
+  state.processing = true; separateButton.disabled = true; separateButton.innerHTML = '<span class="spinner"></span> Separating…'; $('#process-note').textContent = '';
   try {
     const imageResponse = await fetch(proxied(postImage(state.selected)), { credentials: 'same-origin' });
     if (!imageResponse.ok) throw new Error(`Image proxy returned ${imageResponse.status}`);
     const contentType = imageResponse.headers.get('content-type') || '';
     if (!contentType.toLowerCase().startsWith('image/')) throw new Error(`Expected image data but received ${contentType || 'unknown content type'}`);
-
     const inputBuffer = await imageResponse.arrayBuffer();
     const blob = await separateInWorker(inputBuffer, contentType);
     if (!state.selected || state.selected.id !== selectedId) return;
-
-    clearSubject();
-    state.cutoutUrl = URL.createObjectURL(blob);
-    artSubject.src = state.cutoutUrl;
-    artSubject.hidden = false;
-    artSubject.alt = `${friendlyName(state.selected)} foreground`;
-    card.classList.add('has-subject');
+    clearSubject(); state.cutoutUrl = URL.createObjectURL(blob); artSubject.src = state.cutoutUrl; artSubject.hidden = false; artSubject.alt = `${friendlyName(state.selected)} foreground`; card.classList.add('has-subject');
     separateButton.innerHTML = '<span>✦</span> Separate again';
   } catch (error) {
     $('#process-note').textContent = `Could not separate subject: ${error.message}`;
     separateButton.innerHTML = '<span>✦</span> Try again';
   } finally {
-    state.processing = false;
-    separateButton.disabled = !state.selected;
+    state.processing = false; separateButton.disabled = !state.selected;
   }
 });
 
 function tilt(event) {
-  const rect = card.getBoundingClientRect();
+  if (state.flipped) return;
+  const rect = cardShell.getBoundingClientRect();
   const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
   const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
   const cx = x - .5; const cy = y - .5; const hyp = Math.min(1, Math.sqrt(cx * cx + cy * cy) / .7071);
   card.style.setProperty('--mx', `${x * 100}%`); card.style.setProperty('--my', `${y * 100}%`);
   card.style.setProperty('--posx', `${x * 100}%`); card.style.setProperty('--posy', `${y * 100}%`); card.style.setProperty('--hyp', hyp);
-  card.style.setProperty('--rx', `${(0.5 - y) * 12}deg`); card.style.setProperty('--ry', `${(x - 0.5) * 12}deg`);
+  cardShell.style.setProperty('--rx', `${(0.5 - y) * 12}deg`); cardShell.style.setProperty('--ry', `${(x - 0.5) * 12}deg`);
 }
-card.addEventListener('pointermove', tilt);
-card.addEventListener('pointerleave', () => { card.style.setProperty('--rx', '0deg'); card.style.setProperty('--ry', '0deg'); });
+function resetTilt() { cardShell.style.setProperty('--rx', '0deg'); cardShell.style.setProperty('--ry', '0deg'); }
+function toggleFlip() { resetTilt(); setFlipped(!state.flipped); }
+cardShell.addEventListener('pointermove', tilt);
+cardShell.addEventListener('pointerleave', resetTilt);
+cardShell.addEventListener('click', toggleFlip);
+cardShell.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleFlip(); } });
 applyPlacement(); loadPosts();
