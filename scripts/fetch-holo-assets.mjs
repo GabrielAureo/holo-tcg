@@ -6,7 +6,9 @@ const assets = {
   'ancient.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/ancient.webp',
   'trainerbg.jpg': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/trainerbg.jpg',
   'rainbow2.jpg': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/rainbow2.jpg',
+  'illusion.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/illusion.webp',
   'illusion2.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/illusion2.webp',
+  'stylish.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/stylish.webp',
   'metal.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/metal.webp',
 };
 
