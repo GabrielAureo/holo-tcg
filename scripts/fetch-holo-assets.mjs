@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 
 const assets = {
   'galaxy.png': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/galaxy.png',
@@ -12,10 +12,26 @@ const assets = {
   'metal.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/metal.webp',
 };
 
+async function exists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 await mkdir('assets/holo', { recursive: true });
 for (const [name, url] of Object.entries(assets)) {
+  const path = `assets/holo/${name}`;
+
+  if (await exists(path)) {
+    console.log(`Using cached ${name}`);
+    continue;
+  }
+
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch ${name}: ${response.status}`);
-  await writeFile(`assets/holo/${name}`, Buffer.from(await response.arrayBuffer()));
+  await writeFile(path, Buffer.from(await response.arrayBuffer()));
   console.log(`Fetched ${name}`);
 }
