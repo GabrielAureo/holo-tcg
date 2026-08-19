@@ -2,13 +2,13 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: Manrope, sans-serif;
+  --font-sans: "Manrope", sans-serif;
   --font-mono: "DM Mono", monospace;
   --font-display: "Playfair Display", serif;
 }
 
 :root {
-  font-family: Manrope, sans-serif;
+  font-family: "Manrope", sans-serif;
   color: #f5f2ed;
   background: #090a10;
   font-synthesis: none;
@@ -27,7 +27,25 @@ body,
 body {
   margin: 0;
   min-height: 100vh;
+  font-family: "Manrope", sans-serif;
+  font-weight: 400;
   background: radial-gradient(circle at 50% 20%, #171925 0, transparent 35%), #090a10;
+}
+
+h1 {
+  font-family: "Manrope", sans-serif;
+  font-weight: 700;
+}
+
+h1 em {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-weight: 600;
+}
+
+h2 {
+  font-family: "Manrope", sans-serif;
+  font-weight: 700;
 }
 
 button,
