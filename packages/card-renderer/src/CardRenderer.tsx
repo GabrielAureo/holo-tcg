@@ -24,25 +24,17 @@ export interface CardRendererProps {
   onStatusChange?: (status: CardRendererStatus, error?: Error) => void;
 }
 type RendererStyle = CSSProperties & Record<`--${string}`, string | number>;
+type CardMaskSettings = NonNullable<CardDefinition['artwork']['subject']>['mask'];
 type WorkerResult = { buffer: ArrayBuffer; contentType: string };
 type DragState = { pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number; active: boolean };
 
 function createAbortError() { return new DOMException('Aborted', 'AbortError'); }
-
 function runWorker(worker: Worker, payload: Record<string, unknown>, transfer: Transferable[] = [], signal?: AbortSignal) {
   return new Promise<WorkerResult>((resolve, reject) => {
     const id = crypto.randomUUID();
     let settled = false;
-    const cleanup = () => {
-      signal?.removeEventListener('abort', abort);
-      worker.terminate();
-    };
-    const finish = (callback: () => void) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      callback();
-    };
+    const cleanup = () => { signal?.removeEventListener('abort', abort); worker.terminate(); };
+    const finish = (callback: () => void) => { if (settled) return; settled = true; cleanup(); callback(); };
     const abort = () => finish(() => reject(createAbortError()));
     if (signal?.aborted) return abort();
     signal?.addEventListener('abort', abort, { once: true });
@@ -84,7 +76,7 @@ function useSeparatedSubject(artworkUrl: string, separated: boolean, refreshKey:
   return baseSubject;
 }
 
-function useRefinedSubject(baseSubject: Blob | null, mask: CardDefinition['artwork']['subject'] extends infer Subject ? Subject extends { mask: infer Mask } ? Mask : never : never, report: CardRendererProps['onStatusChange']) {
+function useRefinedSubject(baseSubject: Blob | null, mask: CardMaskSettings, report: CardRendererProps['onStatusChange']) {
   const [subjectUrl, setSubjectUrl] = useState('');
   useEffect(() => {
     const controller = new AbortController();
@@ -123,10 +115,7 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   const backUrl = cardBacks[card.appearance.back as keyof typeof cardBacks] || cardBacks.aurora;
   const style: RendererStyle = { '--art-x': `${card.artwork.x}%`, '--art-y': `${card.artwork.y}%`, '--art-scale': card.artwork.scale, '--mx': '50%', '--my': '50%', '--posx': '50%', '--posy': '50%', '--hyp': 0, '--rx': '0deg', '--ry': '0deg' };
 
-  useEffect(() => {
-    if (!artworkUrl) onStatusChange?.('idle');
-    else if (!subject.separated) onStatusChange?.('loading-artwork');
-  }, [artworkUrl, subject.separated]);
+  useEffect(() => { if (!artworkUrl) onStatusChange?.('idle'); else if (!subject.separated) onStatusChange?.('loading-artwork'); }, [artworkUrl, subject.separated]);
 
   function updateTilt(event: PointerEvent<HTMLDivElement>) {
     if (!interactive || flipped || dragRef.current?.active) return;
@@ -145,8 +134,7 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
     if (drag && drag.pointerId === event.pointerId && onArtworkPlacementChange) {
-      const dx = event.clientX - drag.startClientX;
-      const dy = event.clientY - drag.startClientY;
+      const dx = event.clientX - drag.startClientX; const dy = event.clientY - drag.startClientY;
       if (!drag.active && Math.hypot(dx, dy) >= 7) drag.active = true;
       if (drag.active) {
         const rect = event.currentTarget.getBoundingClientRect();
@@ -157,11 +145,8 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
     updateTilt(event);
   }
   function endDrag(event: PointerEvent<HTMLDivElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    suppressClickRef.current = drag.active;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    dragRef.current = null;
+    const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
+    suppressClickRef.current = drag.active; event.currentTarget.releasePointerCapture?.(event.pointerId); dragRef.current = null;
   }
   function resetTilt() { shellRef.current?.style.setProperty('--rx', '0deg'); shellRef.current?.style.setProperty('--ry', '0deg'); }
   function toggleFlip() { if (!interactive) return; resetTilt(); setFlipped((value) => !value); }
