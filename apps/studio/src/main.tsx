@@ -184,7 +184,7 @@ function Studio() {
             </Tabs>
             <div className="grid max-h-[330px] grid-cols-2 gap-1.5 overflow-auto pr-[3px]">
               {activeHoloLayer === 'subject' && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
-              {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} className={cn('group relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
+              {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} data-foil={id} className={cn('foil-option group relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
             </div>
           </fieldset>
 
