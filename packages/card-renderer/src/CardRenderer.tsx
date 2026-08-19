@@ -13,6 +13,7 @@ export type CardRendererStatus = 'idle' | 'loading-artwork' | 'separating-subjec
 
 export interface CardRendererProps {
   card: CardDefinition;
+  /** Maps the serialized original URL to an environment-specific URL, e.g. the Studio image proxy. */
   resolveArtworkUrl?: (url: string) => string;
   interactive?: boolean;
   className?: string;
@@ -137,7 +138,12 @@ export function CardRenderer({ card, resolveArtworkUrl = (url) => url, interacti
           <div className="card-foil" />
           {subjectUrl && <div className="art-layer art-subject-layer">
             <img className="subject-image" src={subjectUrl} alt={`${card.artwork.name || 'Card artwork'} foreground`} />
-            <div className="subject-foil" data-foil={card.appearance.subjectFoil || 'none'} style={{ maskImage: `url(${subjectUrl})`, WebkitMaskImage: `url(${subjectUrl})` }} />
+            {card.appearance.subjectFoil !== 'none' && <div
+              className="card subject-effect"
+              data-foil={card.appearance.subjectFoil}
+              style={{ maskImage: `url(${subjectUrl})`, WebkitMaskImage: `url(${subjectUrl})` }}
+              aria-hidden="true"
+            ><div className="card-foil" /></div>}
           </div>}
           <div className="card-glare" />
           <div className="card-copy"><span className="serial">HS–001</span><div><span className="rarity">PRISMATIC</span><h3>{card.artwork.name || 'UNTITLED'}</h3></div></div>
