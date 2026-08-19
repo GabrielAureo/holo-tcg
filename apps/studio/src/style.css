@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -6,48 +7,36 @@
   --font-display: "Playfair Display", serif;
 }
 
-:root {
-  font-family: Manrope, sans-serif;
-  color: #f5f2ed;
-  background: #090a10;
-  font-synthesis: none;
-  --line: #292b35;
-  --muted: #898b96;
-  --acid: #d4ff45;
-}
+@layer base {
+  :root {
+    color: #f5f2ed;
+    background: #090a10;
+    font-synthesis: none;
+    --line: #292b35;
+    --muted: #898b96;
+    --acid: #d4ff45;
+  }
 
-html,
-body,
-#app {
-  min-width: 320px;
-  min-height: 100%;
-}
+  html,
+  body,
+  #app {
+    min-width: 320px;
+    min-height: 100%;
+  }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: Manrope, sans-serif;
-  font-weight: 400;
-  background: radial-gradient(circle at 50% 20%, #171925 0, transparent 35%), #090a10;
-}
+  body {
+    @apply font-sans font-normal;
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 50% 20%, #171925 0, transparent 35%), #090a10;
+  }
 
-.font-sans { font-family: Manrope, sans-serif !important; }
-.font-mono { font-family: "DM Mono", monospace !important; }
-.font-display { font-family: "Playfair Display", serif !important; }
+  h1,
+  h2 {
+    @apply font-sans font-bold;
+  }
 
-h1,
-h2 {
-  font-family: Manrope, sans-serif;
-  font-weight: 700;
-}
-
-h1 em {
-  font-family: "Playfair Display", serif;
-  font-style: italic;
-  font-weight: 600;
-}
-
-button,
-input {
-  font: inherit;
+  h1 em {
+    @apply font-display font-semibold italic;
+  }
 }
