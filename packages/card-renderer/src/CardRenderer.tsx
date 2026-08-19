@@ -10,18 +10,13 @@ const cardBacks = {
 } as const;
 
 export type CardRendererStatus = 'idle' | 'loading-artwork' | 'separating-subject' | 'refining-mask' | 'ready' | 'error';
-
 export interface CardRendererProps {
   card: CardDefinition;
-  /** Maps the serialized original URL to an environment-specific URL, e.g. the Studio image proxy. */
   resolveArtworkUrl?: (url: string) => string;
-  /** Runtime-only key used to explicitly repeat subject separation without changing serialized card data. */
-  subjectRevision?: number;
   interactive?: boolean;
   className?: string;
   onStatusChange?: (status: CardRendererStatus, error?: Error) => void;
 }
-
 type RendererStyle = CSSProperties & Record<`--${string}`, string | number>;
 
 function runWorker(worker: Worker, payload: Record<string, unknown>, transfer: Transferable[] = []) {
@@ -40,14 +35,13 @@ function runWorker(worker: Worker, payload: Record<string, unknown>, transfer: T
   });
 }
 
-function useSubject(card: CardDefinition, artworkUrl: string, subjectRevision: number, onStatusChange?: CardRendererProps['onStatusChange']) {
+function useSubject(card: CardDefinition, artworkUrl: string, onStatusChange?: CardRendererProps['onStatusChange']) {
   const [subjectUrl, setSubjectUrl] = useState('');
   useEffect(() => {
     let cancelled = false;
     let objectUrl = '';
     const subject = card.artwork.subject;
     if (!subject?.separated || !artworkUrl) { setSubjectUrl(''); onStatusChange?.('idle'); return; }
-
     void (async () => {
       try {
         onStatusChange?.('loading-artwork');
@@ -70,17 +64,16 @@ function useSubject(card: CardDefinition, artworkUrl: string, subjectRevision: n
         setSubjectUrl(''); onStatusChange?.('error', error);
       }
     })();
-
     return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [artworkUrl, subjectRevision, card.artwork.subject?.separated, card.artwork.subject?.mask.threshold, card.artwork.subject?.mask.feather, card.artwork.subject?.mask.expand, onStatusChange]);
+  }, [artworkUrl, card.artwork.subject]);
   return subjectUrl;
 }
 
-export function CardRenderer({ card, resolveArtworkUrl = (url) => url, subjectRevision = 0, interactive = true, className = '', onStatusChange }: CardRendererProps) {
+export function CardRenderer({ card, resolveArtworkUrl = (url) => url, interactive = true, className = '', onStatusChange }: CardRendererProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const [flipped, setFlipped] = useState(false);
   const artworkUrl = useMemo(() => card.artwork.url ? resolveArtworkUrl(card.artwork.url) : '', [card.artwork.url, resolveArtworkUrl]);
-  const subjectUrl = useSubject(card, artworkUrl, subjectRevision, onStatusChange);
+  const subjectUrl = useSubject(card, artworkUrl, onStatusChange);
   const backUrl = cardBacks[card.appearance.back as keyof typeof cardBacks] || cardBacks.aurora;
   const style: RendererStyle = { '--art-x': `${card.artwork.x}%`, '--art-y': `${card.artwork.y}%`, '--art-scale': card.artwork.scale, '--mx': '50%', '--my': '50%', '--posx': '50%', '--posy': '50%', '--hyp': 0, '--rx': '0deg', '--ry': '0deg' };
 
@@ -99,8 +92,7 @@ export function CardRenderer({ card, resolveArtworkUrl = (url) => url, subjectRe
   return <div ref={shellRef} className={`holo-card-shell ${flipped ? 'is-flipped' : ''} ${className}`.trim()} style={style} onPointerMove={handlePointerMove} onPointerLeave={resetTilt} onClick={toggleFlip} onKeyDown={(event) => { if (!interactive || (event.key !== 'Enter' && event.key !== ' ')) return; event.preventDefault(); toggleFlip(); }} role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-pressed={interactive ? flipped : undefined} aria-label={interactive ? 'Flip card' : undefined}>
     <div className="holo-card-rotator">
       <article className={`card holo-card-face holo-card-front ${card.artwork.mode === 'frame' ? 'in-frame' : ''}`} data-foil={card.appearance.backgroundFoil}>
-        <div className="card-backdrop"/><div className="card-rays"/>
-        {artworkUrl && <img className="art-layer art-background" src={artworkUrl} alt={card.artwork.name || 'Card artwork'}/>}<div className="card-foil"/>
+        <div className="card-backdrop"/><div className="card-rays"/>{artworkUrl && <img className="art-layer art-background" src={artworkUrl} alt={card.artwork.name || 'Card artwork'}/>}<div className="card-foil"/>
         {subjectUrl && <div className="art-layer art-subject-layer"><img className="subject-image" src={subjectUrl} alt={`${card.artwork.name || 'Card artwork'} foreground`}/>{card.appearance.subjectFoil !== 'none' && <div className="card subject-effect" data-foil={card.appearance.subjectFoil} style={{ maskImage: `url(${subjectUrl})`, WebkitMaskImage: `url(${subjectUrl})` }} aria-hidden="true"><div className="card-foil"/></div>}</div>}
         <div className="card-glare"/><div className="card-copy"><span className="serial">HS–001</span><div><span className="rarity">PRISMATIC</span><h3>{card.artwork.name || 'UNTITLED'}</h3></div></div>
       </article>
