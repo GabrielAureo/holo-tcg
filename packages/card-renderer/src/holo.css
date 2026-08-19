@@ -1,12 +1,9 @@
 /*
  * Holo effect recipes adapted from Simey de Klerk's public MIT-licensed
  * "Pokemon Cards Holo effect v2" CodePen: https://codepen.io/simeydotme/pen/abYWJdX
- * Texture assets are fetched into /assets/holo by scripts/fetch-holo-assets.mjs.
+ * Texture assets are vendored with @holo/card-renderer.
  */
 .card{
-  --posx:50%;
-  --posy:50%;
-  --hyp:0;
   --grain:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIj48ZmlsdGVyIGlkPSJuIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjciIG51bU9jdGF2ZXM9IjEwIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiMwMDAiLz48cmVjdCB3aWR0aD0iNTAwIiBoZWlnaHQ9IjUwMCIgZmlsdGVyPSJ1cmwoI24pIiBvcGFjaXR5PSIuMyIvPjwvc3ZnPg==");
 }
 .card .art-layer{
@@ -47,7 +44,7 @@
 .card[data-foil="galaxy"] .card-foil{
   --space:80px;
   background-image:
-    url("/assets/holo/galaxy.png"),url("/assets/holo/galaxy.png"),url("/assets/holo/galaxy.png"),
+    url("../assets/holo/galaxy.png"),url("../assets/holo/galaxy.png"),url("../assets/holo/galaxy.png"),
     repeating-linear-gradient(82deg,rgb(218,56,50) calc(var(--space)*1),rgb(219,204,86) calc(var(--space)*2),rgb(121,199,58) calc(var(--space)*3),rgb(58,192,183) calc(var(--space)*4),rgb(71,98,207) calc(var(--space)*5),rgb(170,69,209) calc(var(--space)*6),rgb(218,56,50) calc(var(--space)*10)),
     radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(255,255,255,.6) 5%,rgba(150,150,150,.3) 40%,#000 100%);
   background-blend-mode:color-dodge,color-burn,saturation,screen;
@@ -61,7 +58,7 @@
 .card[data-foil="prism"] .card-foil{
   --space:6%;--angle:133deg;--imgsize:60% 30%;
   background-image:
-    url("/assets/holo/vmaxbg.webp"),
+    url("../assets/holo/vmaxbg.webp"),
     repeating-linear-gradient(-33deg,rgb(206,42,36) calc(var(--space)*1),rgb(157,170,223) calc(var(--space)*2),rgb(45,153,146) calc(var(--space)*3),rgb(29,151,36) calc(var(--space)*4),rgb(181,64,228) calc(var(--space)*5),rgb(206,42,36) calc(var(--space)*6)),
     repeating-linear-gradient(var(--angle),rgba(14,21,46,.5) 0%,hsl(180,10%,50%) 2.5%,hsl(83,50%,35%) 5%,hsl(180,10%,50%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
     radial-gradient(farthest-corner circle at var(--mx) var(--my),rgba(6,218,255,.6) 0%,rgba(38,235,127,.6) 25%,rgba(155,78,228,.6) 50%,rgba(228,78,90,.6) 75%);
@@ -76,10 +73,10 @@
 .card[data-foil="fullart"] .card-foil::after{
   --space:7%;--angle:-20deg;--angle2:130deg;--imgsize:540px 700px;
   background-image:
-    url("/assets/holo/rainbow2.jpg"),
+    url("../assets/holo/rainbow2.jpg"),
     repeating-linear-gradient(var(--angle),rgb(253,71,65) calc(var(--space)*1),rgb(255,243,151) calc(var(--space)*2),rgba(168,255,95,1) calc(var(--space)*3),rgba(131,255,247,1) calc(var(--space)*4),rgb(75,198,255) calc(var(--space)*5),rgb(255,73,246) calc(var(--space)*6),rgb(255,56,49) calc(var(--space)*7)),
     repeating-linear-gradient(var(--angle2),rgba(89,46,80,.5) 0%,hsl(118,43%,76%) 2.5%,rgb(223,96,202) 5%,hsl(180,57%,56%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
-    url("/assets/holo/illusion2.webp");
+    url("../assets/holo/illusion2.webp");
   background-size:50% 50%,500% 500%,1000% 1000%,var(--imgsize);
   background-position:center,0% calc(var(--posy)*1.5),var(--posx) var(--posy),center;
   background-blend-mode:color-burn,soft-light,normal;
@@ -94,19 +91,15 @@
 .card[data-foil="gold"] .card-foil{
   --angle:110deg;--imgsize:30%;
   background-image:
-    url("/assets/holo/rainbow2.jpg"),
+    url("../assets/holo/rainbow2.jpg"),
     repeating-linear-gradient(var(--angle),rgba(89,46,80,.5) 0%,hsl(39,37%,60%) 2.5%,rgb(216,183,92) 5%,hsl(39,37%,60%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%),
-    url("/assets/holo/metal.webp");
+    url("../assets/holo/metal.webp");
   background-size:50% 50%,600% 600%,var(--imgsize);
   background-position:center,var(--posx) var(--posy),center;
   background-blend-mode:color-burn,darken;
   filter:brightness(calc((var(--hyp)*.4) + .7)) contrast(3) saturate(.66);
 }
 .card[data-foil="gold"] .card-foil::after{
-  background-image:url("/assets/holo/rainbow2.jpg"),repeating-linear-gradient(var(--angle),rgba(89,46,80,.5) 0%,hsl(39,37%,60%) 2.5%,rgb(216,183,92) 5%,hsl(39,37%,60%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%);
+  background-image:url("../assets/holo/rainbow2.jpg"),repeating-linear-gradient(var(--angle),rgba(89,46,80,.5) 0%,hsl(39,37%,60%) 2.5%,rgb(216,183,92) 5%,hsl(39,37%,60%) 7.5%,rgba(14,21,46,.5) 10%,rgba(14,21,46,.5) 15%);
   background-size:50% 50%,600% 600%;background-position:center,calc(var(--posx)*-1) calc(var(--posy)*-1);filter:brightness(calc((var(--hyp)*.3) + .7)) contrast(2.5) saturate(.66);mix-blend-mode:exclusion;
 }
-
-.foil-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
-.foil-option{min-height:38px;border:1px solid #30333e;background:#11131b;color:#777b87;padding:8px;text-align:left;font:9px DM Mono;cursor:pointer}
-.foil-option.active{border-color:var(--acid);color:#f1f2f5;background:#191b24}
