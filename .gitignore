@@ -2,4 +2,4 @@ node_modules
 dist
 .env
 *.log
-/apps/studio/assets/holo/
+/apps/studio/public/assets/holo/
