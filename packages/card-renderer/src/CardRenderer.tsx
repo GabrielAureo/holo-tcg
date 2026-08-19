@@ -41,7 +41,7 @@ function useSubject(card: CardDefinition, artworkUrl: string, onStatusChange?: C
     let cancelled = false;
     let objectUrl = '';
     const subject = card.artwork.subject;
-    if (!subject?.separated || !artworkUrl) { setSubjectUrl(''); onStatusChange?.('idle'); return; }
+    if (!subject?.separated || !artworkUrl) { setSubjectUrl(''); return; }
     void (async () => {
       try {
         onStatusChange?.('loading-artwork');
@@ -77,6 +77,11 @@ export function CardRenderer({ card, resolveArtworkUrl = (url) => url, interacti
   const backUrl = cardBacks[card.appearance.back as keyof typeof cardBacks] || cardBacks.aurora;
   const style: RendererStyle = { '--art-x': `${card.artwork.x}%`, '--art-y': `${card.artwork.y}%`, '--art-scale': card.artwork.scale, '--mx': '50%', '--my': '50%', '--posx': '50%', '--posy': '50%', '--hyp': 0, '--rx': '0deg', '--ry': '0deg' };
 
+  useEffect(() => {
+    if (!artworkUrl) onStatusChange?.('idle');
+    else if (!card.artwork.subject?.separated) onStatusChange?.('loading-artwork');
+  }, [artworkUrl, card.artwork.subject?.separated]);
+
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     if (!interactive || flipped) return;
     const shell = shellRef.current; if (!shell) return;
@@ -92,7 +97,7 @@ export function CardRenderer({ card, resolveArtworkUrl = (url) => url, interacti
   return <div ref={shellRef} className={`holo-card-shell ${flipped ? 'is-flipped' : ''} ${className}`.trim()} style={style} onPointerMove={handlePointerMove} onPointerLeave={resetTilt} onClick={toggleFlip} onKeyDown={(event) => { if (!interactive || (event.key !== 'Enter' && event.key !== ' ')) return; event.preventDefault(); toggleFlip(); }} role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-pressed={interactive ? flipped : undefined} aria-label={interactive ? 'Flip card' : undefined}>
     <div className="holo-card-rotator">
       <article className={`card holo-card-face holo-card-front ${card.artwork.mode === 'frame' ? 'in-frame' : ''}`} data-foil={card.appearance.backgroundFoil}>
-        <div className="card-backdrop"/><div className="card-rays"/>{artworkUrl && <img className="art-layer art-background" src={artworkUrl} alt={card.artwork.name || 'Card artwork'}/>}<div className="card-foil"/>
+        <div className="card-backdrop"/><div className="card-rays"/>{artworkUrl && <img className="art-layer art-background" src={artworkUrl} alt={card.artwork.name || 'Card artwork'} onLoad={() => { if (!card.artwork.subject?.separated) onStatusChange?.('ready'); }} onError={() => onStatusChange?.('error', new Error('Artwork failed to load'))}/>}<div className="card-foil"/>
         {subjectUrl && <div className="art-layer art-subject-layer"><img className="subject-image" src={subjectUrl} alt={`${card.artwork.name || 'Card artwork'} foreground`}/>{card.appearance.subjectFoil !== 'none' && <div className="card subject-effect" data-foil={card.appearance.subjectFoil} style={{ maskImage: `url(${subjectUrl})`, WebkitMaskImage: `url(${subjectUrl})` }} aria-hidden="true"><div className="card-foil"/></div>}</div>}
         <div className="card-glare"/><div className="card-copy"><span className="serial">HS–001</span><div><span className="rarity">PRISMATIC</span><h3>{card.artwork.name || 'UNTITLED'}</h3></div></div>
       </article>
