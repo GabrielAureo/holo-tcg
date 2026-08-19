@@ -26,7 +26,25 @@ body,
 body {
   margin: 0;
   min-height: 100vh;
+  font-family: Manrope, sans-serif;
+  font-weight: 400;
   background: radial-gradient(circle at 50% 20%, #171925 0, transparent 35%), #090a10;
+}
+
+.font-sans { font-family: Manrope, sans-serif !important; }
+.font-mono { font-family: "DM Mono", monospace !important; }
+.font-display { font-family: "Playfair Display", serif !important; }
+
+h1,
+h2 {
+  font-family: Manrope, sans-serif;
+  font-weight: 700;
+}
+
+h1 em {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-weight: 600;
 }
 
 button,
