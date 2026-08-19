@@ -12,24 +12,12 @@ const assets = {
   'metal.webp': 'https://res.cloudinary.com/simey/image/upload/Dev/PokemonCards/metal.webp',
 };
 
-async function exists(path) {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
+async function exists(path) { try { await access(path); return true; } catch { return false; } }
 
-await mkdir('assets/holo', { recursive: true });
+await mkdir('public/assets/holo', { recursive: true });
 for (const [name, url] of Object.entries(assets)) {
-  const path = `assets/holo/${name}`;
-
-  if (await exists(path)) {
-    console.log(`Using cached ${name}`);
-    continue;
-  }
-
+  const path = `public/assets/holo/${name}`;
+  if (await exists(path)) { console.log(`Using cached ${name}`); continue; }
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch ${name}: ${response.status}`);
   await writeFile(path, Buffer.from(await response.arrayBuffer()));
