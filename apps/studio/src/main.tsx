@@ -169,7 +169,7 @@ function Studio() {
         </aside>
 
         <section className="stage" aria-label="Card preview">
-          {hasArtwork ? <CardRenderer card={card} resolveArtworkUrl={proxied} onStatusChange={(status, error) => { setRenderStatus(status); setRenderError(error?.message || ''); }} /> : <CardRenderer card={card} interactive={false} />}
+          {hasArtwork ? <CardRenderer className="studio-card-preview" card={card} resolveArtworkUrl={proxied} onStatusChange={(status, error) => { setRenderStatus(status); setRenderError(error?.message || ''); }} /> : <CardRenderer className="studio-card-preview" card={card} interactive={false} />}
           {busy && <div className="shared-card-loader"><span className="spinner"/><span>{renderStatus === 'separating-subject' ? 'Separating subject…' : renderStatus === 'refining-mask' ? 'Refining mask…' : 'Loading card…'}</span></div>}
           <p className="hint">Move to shift the light · click to flip</p>
         </section>
