@@ -15,6 +15,7 @@ const BACK_IDS = new Set<string>(BACKS);
 
 type Post = { id: number; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
 type TagSuggestion = { name: string; post_count?: number | null };
+type HoloLayer = 'background' | 'subject';
 
 function proxied(url: string) { return url ? `/api/image?url=${encodeURIComponent(url)}` : ''; }
 function postImage(post: Post) { return post.large_file_url || post.file_url || post.preview_file_url || ''; }
@@ -71,12 +72,14 @@ function Studio() {
   const [renderStatus, setRenderStatus] = useState<CardRendererStatus>('idle');
   const [renderError, setRenderError] = useState('');
   const [subjectRefreshKey, setSubjectRefreshKey] = useState(0);
+  const [activeHoloLayer, setActiveHoloLayer] = useState<HoloLayer>('background');
   const suggestionTimer = useRef<number | undefined>(undefined);
   const autoFitNextArtwork = useRef(false);
   const hasArtwork = Boolean(card.artwork.url);
 
   useEffect(() => { syncQuery(card); }, [card]);
   useEffect(() => { void loadPosts(false, 1, 'hololive solo'); }, []);
+  useEffect(() => { if (!card.artwork.subject?.separated) setActiveHoloLayer('background'); }, [card.artwork.subject?.separated]);
 
   async function loadPosts(append: boolean, requestedPage: number, query: string) {
     setLoadingPosts(true);
@@ -93,6 +96,7 @@ function Studio() {
 
   function selectPost(post: Post) {
     autoFitNextArtwork.current = true;
+    setActiveHoloLayer('background');
     setSelectedId(post.id);
     setCard((current) => ({ ...current, artwork: { ...current.artwork, url: postImage(post), name: friendlyName(post), subject: { separated: false, mask: { threshold: 128, feather: 24, expand: 0 } } }, appearance: { ...current.appearance, subjectFoil: 'none' } }));
   }
@@ -129,6 +133,8 @@ function Studio() {
 
   const subject = card.artwork.subject ?? { separated: false, mask: { threshold: 128, feather: 24, expand: 0 } };
   const busy = ['loading-artwork', 'separating-subject', 'refining-mask'].includes(renderStatus);
+  const activeFoil = activeHoloLayer === 'subject' ? card.appearance.subjectFoil : card.appearance.backgroundFoil;
+  const chooseFoil = (foil: string) => activeHoloLayer === 'subject' ? patchAppearance({ subjectFoil: foil }) : patchAppearance({ backgroundFoil: foil });
 
   return <>
     <header className="topbar"><a className="brand" href="#"><span className="brand-mark">H</span><span>HOLO / STUDIO</span></a><div className="status"><i /> Browser processing · images stay local</div></header>
@@ -142,15 +148,14 @@ function Studio() {
         <section className="stage" aria-label="Card preview"><CardRenderer className="studio-card-preview" card={card} resolveArtworkUrl={proxied} interactive={hasArtwork} subjectRefreshKey={subjectRefreshKey} onArtworkPlacementChange={hasArtwork ? ({ x, y }) => patchArtwork({ x, y }) : undefined} onArtworkLoad={handleArtworkLoad} onStatusChange={handleRendererStatus} />{busy && <div className="shared-card-loader"><span className="spinner"/><span>{renderStatus === 'separating-subject' ? 'Separating subject…' : renderStatus === 'refining-mask' ? 'Refining mask…' : 'Loading card…'}</span></div>}<p className="hint">Drag to place · move to shift the light · click to flip</p></section>
 
         <aside className="panel controls"><div className="panel-head"><div><span className="step">02</span><h2>Compose</h2></div></div>
-          <fieldset><legend>Background holo</legend><div className="holo-picker">{FOILS.map(([id, label]) => <button type="button" key={id} className={`holo-choice ${card.appearance.backgroundFoil === id ? 'active' : ''}`} onClick={() => patchAppearance({ backgroundFoil: id })}><HoloEffectPreview foil={id}/><span>{label}</span></button>)}</div></fieldset>
-          <fieldset><legend>Subject holo</legend><div className="holo-picker"><button type="button" className={`holo-choice ${card.appearance.subjectFoil === 'none' ? 'active' : ''}`} onClick={() => patchAppearance({ subjectFoil: 'none' })}>None</button>{FOILS.map(([id, label]) => <button type="button" key={id} className={`holo-choice ${card.appearance.subjectFoil === id ? 'active' : ''}`} disabled={!subject.separated} onClick={() => patchAppearance({ subjectFoil: id })}><HoloEffectPreview foil={id}/><span>{label}</span></button>)}</div></fieldset>
+          <fieldset><legend>Holo style</legend><div className="layer-tabs" role="tablist" aria-label="Card layer"><button type="button" className={`layer-tab ${activeHoloLayer === 'background' ? 'active' : ''}`} role="tab" aria-selected={activeHoloLayer === 'background'} onClick={() => setActiveHoloLayer('background')}>Background</button>{subject.separated && <button type="button" className={`layer-tab ${activeHoloLayer === 'subject' ? 'active' : ''}`} role="tab" aria-selected={activeHoloLayer === 'subject'} onClick={() => setActiveHoloLayer('subject')}>Subject</button>}</div><div className="holo-picker">{activeHoloLayer === 'subject' && <button type="button" className={`holo-choice ${activeFoil === 'none' ? 'active' : ''}`} onClick={() => chooseFoil('none')}><span>None</span></button>}{FOILS.map(([id, label]) => <button type="button" key={id} className={`holo-choice ${activeFoil === id ? 'active' : ''}`} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span>{label}</span></button>)}</div></fieldset>
           <fieldset><legend>Card back</legend><div className="back-picker">{BACKS.map((back) => <button type="button" key={back} className={`back-option ${card.appearance.back === back ? 'active' : ''}`} onClick={() => patchAppearance({ back })}><span>{back}</span></button>)}</div></fieldset>
           <fieldset><legend>Art treatment</legend><div className="segmented"><button className={card.artwork.mode === 'full' ? 'active' : ''} onClick={() => patchArtwork({ mode: 'full' })}>Full body</button><button className={card.artwork.mode === 'frame' ? 'active' : ''} onClick={() => patchArtwork({ mode: 'frame' })}>In frame</button></div></fieldset>
           <div className="control"><label>Artwork scale <output>{Math.round(card.artwork.scale * 100)}%</output></label><input type="range" min="50" max="220" value={card.artwork.scale * 100} onChange={(e) => patchArtwork({ scale: Number(e.target.value) / 100 })}/></div>
           <div className="control"><label>Horizontal <output>{Math.round(card.artwork.x)}%</output></label><input type="range" min="0" max="100" value={card.artwork.x} onChange={(e) => patchArtwork({ x: Number(e.target.value) })}/></div>
           <div className="control"><label>Vertical <output>{Math.round(card.artwork.y)}%</output></label><input type="range" min="0" max="100" value={card.artwork.y} onChange={(e) => patchArtwork({ y: Number(e.target.value) })}/></div>
           <button className="primary" disabled={!hasArtwork || busy} onClick={separateSubject}><span>✦</span> {subject.separated ? 'Separate again' : 'Separate subject'}</button>
-          {subject.separated && <fieldset className="advanced-mask"><legend>Mask refinement</legend><div className="mask-control"><label>Threshold <output>{subject.mask.threshold}</output></label><input type="range" min="0" max="255" value={subject.mask.threshold} onChange={(e) => patchMask({ threshold: Number(e.target.value) })}/></div><div className="mask-control"><label>Feather <output>{subject.mask.feather}</output></label><input type="range" min="0" max="127" value={subject.mask.feather} onChange={(e) => patchMask({ feather: Number(e.target.value) })}/></div><div className="mask-control"><label>Expand <output>{subject.mask.expand}</output></label><input type="range" min="-8" max="8" value={subject.mask.expand} onChange={(e) => patchMask({ expand: Number(e.target.value) })}/></div></fieldset>}
+          {subject.separated && activeHoloLayer === 'subject' && <fieldset className="advanced-mask"><legend>Mask refinement</legend><div className="mask-control"><label>Threshold <output>{subject.mask.threshold}</output></label><input type="range" min="0" max="255" value={subject.mask.threshold} onChange={(e) => patchMask({ threshold: Number(e.target.value) })}/></div><div className="mask-control"><label>Feather <output>{subject.mask.feather}</output></label><input type="range" min="0" max="127" value={subject.mask.feather} onChange={(e) => patchMask({ feather: Number(e.target.value) })}/></div><div className="mask-control"><label>Expand <output>{subject.mask.expand}</output></label><input type="range" min="-8" max="8" value={subject.mask.expand} onChange={(e) => patchMask({ expand: Number(e.target.value) })}/></div></fieldset>}
           {renderError && <p className="process-note">{renderError}</p>}<button className="secondary" onClick={() => patchArtwork({ x: 50, y: 48, scale: 1 })}>Reset placement</button></aside>
       </div></main>
   </>;
