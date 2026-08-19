@@ -1,4 +1,5 @@
 import { useRef, type PointerEvent } from 'react';
+import './HoloEffectPreview.css';
 
 export interface HoloEffectPreviewProps {
   foil: string;
