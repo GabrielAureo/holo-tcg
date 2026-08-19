@@ -4,9 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./styles.css": "./src/index.css"
   },
   "dependencies": {
-    "@holo/card-schema": "0.0.0"
+    "@holo/card-schema": "0.0.0",
+    "@imgly/background-removal": "1.7.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
   }
 }
