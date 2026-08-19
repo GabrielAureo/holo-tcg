@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ChevronDown, TriangleAlert } from 'lucide-react';
 import { CardRenderer, HoloEffectPreview, type ArtworkMetrics, type CardRendererStatus } from '@holo/card-renderer';
 import type { CardDefinition } from '@holo/card-schema';
+import { EditableNumber } from './components/editable-number';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
 import { Slider } from './components/ui/slider';
@@ -77,6 +78,16 @@ function SectionHeader({ step, title, source }: { step: string; title: string; s
 
 function ControlLabel({ label, value }: { label: string; value: string | number }) {
   return <div className="mb-2.5 flex w-full justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>{label}</span><output className="text-[#d9dbe2]">{value}</output></div>;
+}
+
+function MaskControl({ label, value, min, max, onChange, warnLow = false }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; warnLow?: boolean }) {
+  return <div className="my-3.5">
+    <div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]">
+      <span className="flex items-center gap-1.5">{label}{warnLow && value < 10 && <span className="group relative inline-flex" tabIndex={0} aria-label="Low threshold values may cause artifacts around the subject"><TriangleAlert className="size-3.5 text-amber-400" aria-hidden="true"/><span role="tooltip" className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-50 w-52 -translate-x-1/2 bg-[#090a10] px-2.5 py-2 text-center font-sans text-[11px] normal-case tracking-normal text-[#d9dbe2] opacity-0 shadow-[0_8px_24px_#000c] transition-opacity group-hover:opacity-100 group-focus:opacity-100">Low threshold values may cause artifacts around the subject.</span></span>}</span>
+      <EditableNumber label={label} value={value} min={min} max={max} onChange={onChange}/>
+    </div>
+    <Slider min={min} max={max} step={1} value={[value]} onValueChange={([next]) => onChange(next)}/>
+  </div>;
 }
 
 function Studio() {
@@ -195,9 +206,9 @@ function Studio() {
             </div>
             <CollapsibleContent className="border border-t-0 border-[#30333e] bg-[#11131b] px-3.5 pb-3 pt-3.5">
               <div className="mb-2.5 flex items-baseline justify-between gap-3"><span className="font-mono text-[9px] uppercase tracking-[.06em] text-[#d8dbe2]">Mask refinement</span><small className="text-right font-mono text-[8px] text-[#696d78]">Applied on the next separation</small></div>
-              <div className="my-3.5"><div className="mb-2.5 flex w-full justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span className="flex items-center gap-1.5">Threshold{pendingMask.threshold < 10 && <span className="group relative inline-flex" tabIndex={0} aria-label="Low threshold values may cause artifacts around the subject"><TriangleAlert className="size-3.5 text-amber-400" aria-hidden="true"/><span role="tooltip" className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-50 w-52 -translate-x-1/2 bg-[#090a10] px-2.5 py-2 text-center font-sans text-[11px] normal-case tracking-normal text-[#d9dbe2] opacity-0 shadow-[0_8px_24px_#000c] transition-opacity group-hover:opacity-100 group-focus:opacity-100">Low threshold values may cause artifacts around the subject.</span></span>}</span><output className="text-[#d9dbe2]">{pendingMask.threshold}</output></div><Slider min={0} max={255} step={1} value={[pendingMask.threshold]} onValueChange={([value]) => patchPendingMask({ threshold: value })}/></div>
-              <div className="my-3.5"><ControlLabel label="Feather" value={pendingMask.feather}/><Slider min={0} max={127} step={1} value={[pendingMask.feather]} onValueChange={([value]) => patchPendingMask({ feather: value })}/></div>
-              <div className="my-3.5"><ControlLabel label="Expand" value={pendingMask.expand}/><Slider min={-8} max={8} step={1} value={[pendingMask.expand]} onValueChange={([value]) => patchPendingMask({ expand: value })}/></div>
+              <MaskControl label="Threshold" value={pendingMask.threshold} min={0} max={255} warnLow onChange={(value) => patchPendingMask({ threshold: value })}/>
+              <MaskControl label="Feather" value={pendingMask.feather} min={0} max={127} onChange={(value) => patchPendingMask({ feather: value })}/>
+              <MaskControl label="Expand" value={pendingMask.expand} min={-8} max={8} onChange={(value) => patchPendingMask({ expand: value })}/>
               <Button className="w-full" onClick={resetPendingMask}>Reset mask settings</Button>
             </CollapsibleContent>
           </Collapsible>
