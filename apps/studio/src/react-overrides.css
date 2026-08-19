@@ -1,0 +1,8 @@
+.stage{position:relative}
+.stage>.holo-card-shell{width:min(355px,70%)}
+.holo-card-shell .card{width:100%;height:100%;aspect-ratio:auto}
+.shared-card-loader{position:absolute;inset:0;z-index:50;display:grid;place-items:center;align-content:center;gap:12px;background:#0c0d14cc;color:#cfd2da;font:10px DM Mono;text-transform:uppercase;letter-spacing:.12em;pointer-events:none}
+.shared-card-loader .spinner{width:26px;height:26px;border:2px solid #ffffff26;border-right-color:var(--acid)}
+.back-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.back-option{min-height:38px;border:1px solid #30333e;background:#11131b;color:#777b87;padding:8px;text-align:left;font:9px DM Mono;text-transform:capitalize;cursor:pointer}.back-option.active{border-color:var(--acid);color:#f1f2f5;background:#191b24}
+.advanced-mask{border-top:1px solid #242732!important;padding-top:18px!important}.mask-control{margin:14px 0}.mask-control label{display:flex;justify-content:space-between;margin-bottom:7px;color:#8f929d;font:9px DM Mono;text-transform:uppercase}.mask-control output{color:#d8dbe2}
+@media(max-width:700px){.stage>.holo-card-shell{width:300px}}
