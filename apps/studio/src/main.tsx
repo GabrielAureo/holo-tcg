@@ -72,7 +72,7 @@ function syncQuery(card: CardDefinition) {
 }
 
 function SectionHeader({ step, title, source }: { step: string; title: string; source?: string }) {
-  return <div className="mb-[22px] flex items-start justify-between"><div className="flex items-center gap-[11px]"><span className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">{step}</span><h2 className="m-0 text-[15px] font-semibold">{title}</h2></div>{source && <span className="border border-[var(--line)] px-[7px] py-[5px] font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#666976]">{source}</span>}</div>;
+  return <div className="mb-[22px] flex items-start justify-between"><div className="flex items-center gap-[11px]"><span className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">{step}</span><h2 className="m-0 font-sans text-[15px] font-bold">{title}</h2></div>{source && <span className="border border-[var(--line)] px-[7px] py-[5px] font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#666976]">{source}</span>}</div>;
 }
 
 function ControlLabel({ label, value }: { label: string; value: string | number }) {
@@ -146,10 +146,10 @@ function Studio() {
       <div className="font-mono text-[10px] uppercase tracking-[.08em] text-[var(--muted)] max-[700px]:hidden"><i className="mr-[7px] inline-block size-1.5 rounded-full bg-[var(--acid)] shadow-[0_0_8px_var(--acid)]" />Browser processing · images stay local</div>
     </header>
 
-    <main className="mx-auto max-w-[1600px] px-[3vw] pb-20 pt-14 max-[700px]:px-3.5 max-[700px]:pt-[38px]">
+    <main className="mx-auto max-w-[1600px] px-[3vw] pb-20 pt-14 font-sans max-[700px]:px-3.5 max-[700px]:pt-[38px]">
       <section className="mx-auto mb-[45px] max-w-[760px] text-center max-[700px]:text-left">
         <p className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">Holographic card composer</p>
-        <h1 className="my-[14px] text-[clamp(38px,5vw,70px)] leading-[1.02] tracking-[-.055em]">Turn character art into<br className="max-[700px]:hidden"/><em className="font-display font-semibold text-[#b9bbc4]">a collectible moment.</em></h1>
+        <h1 className="my-[14px] font-sans text-[clamp(38px,5vw,70px)] font-bold leading-[1.02] tracking-[-.055em]">Turn character art into<br className="max-[700px]:hidden"/><em className="font-display font-semibold italic text-[#b9bbc4]">a collectible moment.</em></h1>
         <p className="mx-auto max-w-[580px] text-sm leading-[1.7] text-[#92949f] max-[700px]:mx-0">Browse anime artwork, separate its subject locally, and apply interactive holographic finishes.</p>
       </section>
 
@@ -184,7 +184,7 @@ function Studio() {
             </Tabs>
             <div className="grid max-h-[330px] grid-cols-2 gap-1.5 overflow-auto pr-[3px]">
               {activeHoloLayer === 'subject' && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
-              {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} data-foil={id} className={cn('foil-option group relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
+              {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} className={cn('group relative isolate min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="pointer-events-none relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
             </div>
           </fieldset>
 
