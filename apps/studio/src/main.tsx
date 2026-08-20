@@ -27,7 +27,7 @@ const textFieldClass = 'w-full border border-[#30333e] bg-[#11131b] px-3 py-2.5 
 
 type Post = { id: number; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
 type TagSuggestion = { name: string; post_count?: number | null };
-type HoloLayer = 'background' | 'subject';
+type HoloLayer = 'background' | 'subject' | 'frame';
 type MaskSettings = NonNullable<CardDefinition['artwork']['subject']>['mask'];
 
 function proxied(url: string) { return url ? `/api/image?url=${encodeURIComponent(url)}` : ''; }
@@ -44,7 +44,7 @@ function defaultCard(): CardDefinition {
     layout: 'full-art',
     artwork: { url: '', name: 'SELECT AN ARTWORK', x: 50, y: 48, scale: 1, subject: { separated: false, mask: { ...DEFAULT_MASK } } },
     content: { name: 'SELECT AN ARTWORK', attack: 100, defense: 100, description: '' },
-    appearance: { backgroundFoil: 'classic', subjectFoil: 'none', back: 'aurora' },
+    appearance: { backgroundFoil: 'classic', subjectFoil: 'none', frameFoil: 'none', back: 'aurora' },
   };
 }
 
@@ -67,9 +67,11 @@ function cardFromQuery(): CardDefinition {
   card.artwork.subject = { separated: q.get('separated') === '1', mask: { threshold: safeNumber(q.get('maskThreshold'), 128, 0, 255), feather: safeNumber(q.get('maskFeather'), 24, 0, 127), expand: safeNumber(q.get('maskExpand'), 0, -8, 8) } };
   const backgroundFoil = q.get('foil');
   const subjectFoil = q.get('subjectFoil');
+  const frameFoil = q.get('frameFoil');
   const back = q.get('back');
   card.appearance.backgroundFoil = backgroundFoil && FOIL_IDS.has(backgroundFoil) ? backgroundFoil : 'classic';
   card.appearance.subjectFoil = subjectFoil && FOIL_IDS.has(subjectFoil) ? subjectFoil : 'none';
+  card.appearance.frameFoil = frameFoil && FOIL_IDS.has(frameFoil) ? frameFoil : 'none';
   card.appearance.back = back && BACK_IDS.has(back) ? back : 'aurora';
   return card;
 }
@@ -81,6 +83,7 @@ function syncQuery(card: CardDefinition) {
   q.set('layout', card.layout); q.set('cardName', card.content.name); q.set('attack', String(card.content.attack)); q.set('defense', String(card.content.defense));
   if (card.content.description) q.set('description', card.content.description);
   q.set('foil', card.appearance.backgroundFoil); q.set('back', card.appearance.back);
+  if (card.layout === 'standard' && card.appearance.frameFoil !== 'none') q.set('frameFoil', card.appearance.frameFoil);
   q.set('x', String(Math.round(card.artwork.x * 100) / 100)); q.set('y', String(Math.round(card.artwork.y * 100) / 100)); q.set('scale', String(Math.round(card.artwork.scale * 100) / 100));
   if (card.artwork.subject?.separated) { q.set('separated', '1'); q.set('maskThreshold', String(card.artwork.subject.mask.threshold)); q.set('maskFeather', String(card.artwork.subject.mask.feather)); q.set('maskExpand', String(card.artwork.subject.mask.expand)); q.set('subjectFoil', card.appearance.subjectFoil); }
   history.replaceState(null, '', `${location.pathname}?${q}`);
@@ -121,7 +124,9 @@ function Studio() {
 
   useEffect(() => { syncQuery(card); }, [card]);
   useEffect(() => { void loadPosts(false, 1, 'hololive solo'); }, []);
-  useEffect(() => { if (!card.artwork.subject?.separated) setActiveHoloLayer('background'); }, [card.artwork.subject?.separated]);
+  useEffect(() => {
+    if ((activeHoloLayer === 'subject' && !card.artwork.subject?.separated) || (activeHoloLayer === 'frame' && card.layout !== 'standard')) setActiveHoloLayer('background');
+  }, [activeHoloLayer, card.artwork.subject?.separated, card.layout]);
 
   async function loadPosts(append: boolean, requestedPage: number, query: string) {
     setLoadingPosts(true);
@@ -168,8 +173,9 @@ function Studio() {
   const subject = card.artwork.subject ?? { separated: false, mask: { ...DEFAULT_MASK } };
   const busy = ['loading-artwork', 'separating-subject', 'refining-mask'].includes(renderStatus);
   const disabled = !hasArtwork || busy;
-  const activeFoil = activeHoloLayer === 'subject' ? card.appearance.subjectFoil : card.appearance.backgroundFoil;
-  const chooseFoil = (foil: string) => activeHoloLayer === 'subject' ? patchAppearance({ subjectFoil: foil }) : patchAppearance({ backgroundFoil: foil });
+  const activeFoil = activeHoloLayer === 'subject' ? card.appearance.subjectFoil : activeHoloLayer === 'frame' ? card.appearance.frameFoil : card.appearance.backgroundFoil;
+  const chooseFoil = (foil: string) => activeHoloLayer === 'subject' ? patchAppearance({ subjectFoil: foil }) : activeHoloLayer === 'frame' ? patchAppearance({ frameFoil: foil }) : patchAppearance({ backgroundFoil: foil });
+  const holoTabsClass = card.layout === 'standard' && subject.separated ? 'grid-cols-3' : card.layout === 'standard' || subject.separated ? 'grid-cols-2' : 'grid-cols-1';
 
   return <>
     <header className="flex h-[76px] items-center justify-between border-b border-[var(--line)] px-[3vw]">
@@ -211,10 +217,10 @@ function Studio() {
           <fieldset className={fieldsetClass}>
             <legend className={cn(monoLabel, 'mb-2.5')}>Holo style</legend>
             <Tabs value={activeHoloLayer} onValueChange={(value) => setActiveHoloLayer(value as HoloLayer)}>
-              <TabsList className={cn(subject.separated ? 'grid-cols-2' : 'grid-cols-1', 'mb-2.5')}><TabsTrigger value="background">Background</TabsTrigger>{subject.separated && <TabsTrigger value="subject">Subject</TabsTrigger>}</TabsList>
+              <TabsList className={cn(holoTabsClass, 'mb-2.5')}><TabsTrigger value="background">Background</TabsTrigger>{subject.separated && <TabsTrigger value="subject">Subject</TabsTrigger>}{card.layout === 'standard' && <TabsTrigger value="frame">Frame</TabsTrigger>}</TabsList>
             </Tabs>
             <div className="grid max-h-[330px] grid-cols-2 gap-1.5 overflow-auto pr-[3px]">
-              {activeHoloLayer === 'subject' && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
+              {(activeHoloLayer === 'subject' || activeHoloLayer === 'frame') && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
               {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} className={cn('group relative isolate min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="pointer-events-none relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
             </div>
           </fieldset>
