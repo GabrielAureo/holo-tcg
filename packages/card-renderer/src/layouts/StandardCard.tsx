@@ -13,6 +13,7 @@ type StandardCardProps = {
 export function StandardCard({ card, artworkUrl, subjectUrl, onArtworkLoad, onArtworkError }: StandardCardProps) {
   return <>
     <div className="standard-card-surface" aria-hidden="true"/>
+    {card.appearance.frameFoil !== 'none' && <div className="card standard-frame-effect" data-foil={card.appearance.frameFoil} aria-hidden="true"><div className="card-foil"/></div>}
     <div className="standard-card-frame" aria-hidden="true"/>
     <div className="standard-card-header">
       <span className="standard-card-kicker">HOLO / STANDARD</span>
