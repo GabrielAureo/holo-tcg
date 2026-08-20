@@ -30,6 +30,7 @@ export interface CardContentDefinition {
 export interface CardAppearanceDefinition {
   backgroundFoil: string;
   subjectFoil: string;
+  frameFoil: string;
   back: string;
 }
 
