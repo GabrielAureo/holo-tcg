@@ -102,7 +102,6 @@ function definitionFor(card: OwnedCard): CardDefinition {
       x: 50,
       y: 50,
       scale: 1.3,
-      // Real catalog cards can set separated=true. The renderer now caches the expensive base subject.
       subject: { separated: false, mask: { threshold: 128, feather: 24, expand: 0 } },
     },
     content: { name: template.name, attack: 100, defense: 100, description: `${template.rarity} drop` },
@@ -158,39 +157,76 @@ function Game() {
   }
 
   return <main className="game-shell">
-    <header className="topbar">
-      <div><p className="eyebrow">HOLO / DROP</p><h1>Build a collection that prints gold.</h1></div>
-      <div className="economy">
-        <div><span>Gold</span><strong>{formatGold(state.gold)}</strong></div>
-        <div><span>Income</span><strong>+{formatGold(income)}/min</strong></div>
-        <div><span>Cards</span><strong>{state.cards.length}</strong></div>
+    <div className="world-glow world-glow-left" aria-hidden="true" />
+    <div className="world-glow world-glow-right" aria-hidden="true" />
+
+    <header className="game-hud">
+      <div className="brand-mark">
+        <span className="brand-sigil">H</span>
+        <div><strong>HOLO DROP</strong><small>ARCHIVE // 01</small></div>
+      </div>
+      <div className="hud-resources">
+        <div className="hud-stat gold-stat"><span className="resource-orb">◆</span><div><small>GOLD</small><strong>{formatGold(state.gold)}</strong></div></div>
+        <div className="hud-stat"><small>FLOW</small><strong>+{formatGold(income)}<em>/min</em></strong></div>
+        <div className="hud-stat"><small>CARDS</small><strong>{state.cards.length}</strong></div>
       </div>
     </header>
 
-    <section className="drop-panel">
-      <div>
-        <p className="eyebrow">NEXT DROP</p>
-        <h2>{canDrop ? 'A card is waiting.' : formatCountdown(remaining)}</h2>
-        <p className="muted">One free drop every 30 minutes. Holographic pulls are rarer and generate {HOLO_MULTIPLIER}× gold.</p>
+    <section className={`drop-stage ${canDrop ? 'is-ready' : ''}`}>
+      <div className="stage-copy">
+        <span className="stage-index">DROP // 001</span>
+        <p className="stage-kicker">THE ARCHIVE IS LISTENING</p>
+        <h1>{canDrop ? <>A new card<br /><i>has surfaced.</i></> : <>Next signal in<br /><i>{formatCountdown(remaining)}</i></>}</h1>
+        <p className="stage-lore">Every pull joins your collection and feeds the gold stream. Holographic variants are scarce and generate {HOLO_MULTIPLIER}× more.</p>
       </div>
-      <button className="drop-button" disabled={!canDrop} onClick={claimDrop}>{canDrop ? 'CLAIM DROP' : 'LOCKED'}</button>
+
+      <div className="drop-core">
+        <div className="drop-rings" aria-hidden="true"><i /><i /><i /></div>
+        <div className="drop-card-back" aria-hidden="true"><span>H</span></div>
+        <button className="summon-button" disabled={!canDrop} onClick={claimDrop}>
+          <span>{canDrop ? 'CLAIM DROP' : formatCountdown(remaining)}</span>
+          <small>{canDrop ? 'FREE SIGNAL' : 'RECHARGING'}</small>
+        </button>
+      </div>
     </section>
 
-    {latestDrop && <section className="latest-drop">
-      <div className="latest-copy"><p className="eyebrow">JUST DROPPED</p><h2>{templateFor(latestDrop).name}</h2><p>{templateFor(latestDrop).rarity} · {latestDrop.foil === 'none' ? 'regular' : `${latestDrop.foil} holo`}</p></div>
-      <CardRenderer card={definitionFor(latestDrop)} interactive className="featured-card" />
+    {latestDrop && <section className="reward-reveal">
+      <div className="reward-card-wrap">
+        <div className="reward-aura" aria-hidden="true" />
+        <CardRenderer card={definitionFor(latestDrop)} interactive className="featured-card" />
+      </div>
+      <div className="reward-copy">
+        <span className={`rarity-mark rarity-${templateFor(latestDrop).rarity}`}>{templateFor(latestDrop).rarity}</span>
+        <p className="reward-kicker">NEW ENTRY ACQUIRED</p>
+        <h2>{templateFor(latestDrop).name}</h2>
+        <div className="reward-stats">
+          <div><small>YIELD</small><strong>+{formatGold(templateFor(latestDrop).baseGoldPerMinute * (latestDrop.foil === 'none' ? 1 : HOLO_MULTIPLIER))}</strong><span>gold / min</span></div>
+          <div><small>FINISH</small><strong>{latestDrop.foil === 'none' ? 'BASE' : latestDrop.foil.toUpperCase()}</strong><span>{latestDrop.foil === 'none' ? 'standard print' : `${HOLO_MULTIPLIER}× holo yield`}</span></div>
+        </div>
+      </div>
     </section>}
 
     <section className="collection-section">
-      <div className="section-title"><div><p className="eyebrow">COLLECTION</p><h2>Your generators</h2></div><p className="muted">Duplicates stack. Gold accrues while the tab is closed.</p></div>
-      {state.cards.length === 0 ? <div className="empty-state">Claim your first drop to start generating gold.</div> : <div className="card-grid">
-        {state.cards.map((owned) => {
+      <div className="collection-heading">
+        <div><span className="stage-index">COLLECTION // ARCHIVE</span><h2>Recovered cards</h2></div>
+        <div className="collection-total"><small>TOTAL FLOW</small><strong>+{formatGold(income)}</strong><span>gold / min</span></div>
+      </div>
+
+      {state.cards.length === 0 ? <div className="empty-vault">
+        <div className="empty-glyph">◇</div>
+        <strong>The archive is empty.</strong>
+        <span>Claim your first signal above.</span>
+      </div> : <div className="card-grid">
+        {state.cards.map((owned, index) => {
           const template = templateFor(owned);
           const perMinute = template.baseGoldPerMinute * (owned.foil === 'none' ? 1 : HOLO_MULTIPLIER);
-          return <article className="collection-card" key={owned.id}>
-            <CardRenderer card={definitionFor(owned)} interactive className="mini-card" />
-            <div className="card-meta"><div><strong>{template.name}</strong><span>{template.rarity}</span></div><div className="yield"><strong>+{formatGold(perMinute)}</strong><span>gold/min</span></div></div>
-            {owned.foil !== 'none' && <div className="holo-chip">{owned.foil} holo · {HOLO_MULTIPLIER}×</div>}
+          return <article className={`collection-card rarity-border-${template.rarity}`} key={owned.id} style={{ '--card-index': index } as React.CSSProperties}>
+            <div className="collection-card-renderer"><CardRenderer card={definitionFor(owned)} interactive className="mini-card" /></div>
+            <footer className="collection-card-info">
+              <div><span className={`rarity-dot rarity-${template.rarity}`} /> <small>{template.rarity}</small><strong>{template.name}</strong></div>
+              <div className="card-yield"><strong>+{formatGold(perMinute)}</strong><small>/ min</small></div>
+            </footer>
+            {owned.foil !== 'none' && <span className="foil-badge">✦ {owned.foil}</span>}
           </article>;
         })}
       </div>}
