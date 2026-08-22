@@ -124,6 +124,7 @@ function Game() {
   const [state, setState] = useState<GameState>(() => settleGold(loadState()));
   const [now, setNow] = useState(Date.now());
   const [latestDropId, setLatestDropId] = useState<string | null>(null);
+  const [isDropping, setIsDropping] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -145,15 +146,20 @@ function Game() {
   const latestDrop = latestDropId ? state.cards.find((card) => card.id === latestDropId) ?? null : null;
 
   function claimDrop() {
-    if (!canDrop) return;
+    if (!canDrop || isDropping) return;
     const dropped = createDrop();
     const tick = Date.now();
+    setIsDropping(true);
     setNow(tick);
-    setLatestDropId(dropped.id);
+    setLatestDropId(null);
     setState((current) => {
       const settled = settleGold(current, tick);
       return { ...settled, cards: [dropped, ...settled.cards], lastDropAt: tick };
     });
+    window.setTimeout(() => {
+      setLatestDropId(dropped.id);
+      setIsDropping(false);
+    }, 1050);
   }
 
   return <main className="game-shell">
@@ -163,7 +169,7 @@ function Game() {
     <header className="game-hud">
       <div className="brand-mark">
         <span className="brand-sigil">H</span>
-        <div><strong>HOLO DROP</strong><small>ARCHIVE // 01</small></div>
+        <div><strong>HOLÔ DROP</strong><small>TAVERNA DO DESTINO</small></div>
       </div>
       <div className="hud-resources">
         <div className="hud-stat gold-stat"><span className="resource-orb">◆</span><div><small>GOLD</small><strong>{formatGold(state.gold)}</strong></div></div>
@@ -172,20 +178,26 @@ function Game() {
       </div>
     </header>
 
-    <section className={`drop-stage ${canDrop ? 'is-ready' : ''}`}>
+    <section className={`drop-stage ${canDrop ? 'is-ready' : ''} ${isDropping ? 'is-dropping' : ''}`}>
       <div className="stage-copy">
-        <span className="stage-index">DROP // 001</span>
-        <p className="stage-kicker">THE ARCHIVE IS LISTENING</p>
-        <h1>{canDrop ? <>A new card<br /><i>has surfaced.</i></> : <>Next signal in<br /><i>{formatCountdown(remaining)}</i></>}</h1>
-        <p className="stage-lore">Every pull joins your collection and feeds the gold stream. Holographic variants are scarce and generate {HOLO_MULTIPLIER}× more.</p>
+        <span className="stage-index">MESA // 001</span>
+        <p className="stage-kicker">A TAVERNA AGUARDA</p>
+        <h1>{canDrop ? <>Seu destino<br /><i>está na mesa.</i></> : <>Próxima carta em<br /><i>{formatCountdown(remaining)}</i></>}</h1>
+        <p className="stage-lore">Cada carta fortalece sua coleção e aumenta o tesouro. Relíquias holográficas são raras e rendem {HOLO_MULTIPLIER}× mais ouro.</p>
       </div>
 
       <div className="drop-core">
-        <div className="drop-rings" aria-hidden="true"><i /><i /><i /></div>
-        <div className="drop-card-back" aria-hidden="true"><span>H</span></div>
-        <button className="summon-button" disabled={!canDrop} onClick={claimDrop}>
-          <span>{canDrop ? 'CLAIM DROP' : formatCountdown(remaining)}</span>
-          <small>{canDrop ? 'FREE SIGNAL' : 'RECHARGING'}</small>
+        <div className="rune-circle" aria-hidden="true" />
+        <div className="card-deck" aria-hidden="true"><i /><i /><div className="drop-card-back"><span>H</span></div></div>
+        {isDropping && <div className="flying-card drop-card-back" aria-hidden="true"><span>H</span></div>}
+        {latestDrop && <div className="table-reward">
+          <div className="table-reward-glow" aria-hidden="true" />
+          <CardRenderer card={definitionFor(latestDrop)} interactive className="table-reward-card" />
+          <strong>{templateFor(latestDrop).name}</strong>
+        </div>}
+        <button className="summon-button" disabled={!canDrop || isDropping} onClick={claimDrop}>
+          <span>{isDropping ? 'REVELANDO...' : canDrop ? 'COMPRAR CARTA' : formatCountdown(remaining)}</span>
+          <small>{canDrop ? 'TENTE SUA SORTE' : 'O BARALHO DESCANSA'}</small>
         </button>
       </div>
     </section>
