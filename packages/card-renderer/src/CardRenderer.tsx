@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import type { CardDefinition } from '@holo/card-schema';
+import { FullArtCard } from './layouts/FullArtCard';
+import { StandardCard } from './layouts/StandardCard';
 import './index.css';
 
 const identityArtworkUrl = (url: string) => url;
@@ -151,15 +153,15 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   function resetTilt() { shellRef.current?.style.setProperty('--rx', '0deg'); shellRef.current?.style.setProperty('--ry', '0deg'); }
   function toggleFlip() { if (!interactive) return; resetTilt(); setFlipped((value) => !value); }
   function handleClick() { if (suppressClickRef.current) { suppressClickRef.current = false; return; } toggleFlip(); }
+  function handleArtworkReady(metrics: ArtworkMetrics) { onArtworkLoad?.(metrics); if (!subject.separated) onStatusChange?.('ready'); }
+  function handleArtworkError() { onStatusChange?.('error', new Error('Artwork failed to load')); }
 
   return <div ref={shellRef} className={`holo-card-shell ${flipped ? 'is-flipped' : ''} ${onArtworkPlacementChange ? 'is-artwork-editable' : ''} ${className}`.trim()} style={style} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={resetTilt} onClick={handleClick} onKeyDown={(event) => { if (!interactive || (event.key !== 'Enter' && event.key !== ' ')) return; event.preventDefault(); toggleFlip(); }} role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-pressed={interactive ? flipped : undefined} aria-label={interactive ? 'Flip card' : undefined}>
     <div className="holo-card-rotator">
-      <article className={`card holo-card-face holo-card-front ${card.artwork.mode === 'frame' ? 'in-frame' : ''}`}>
-        <div className="card-backdrop"/><div className="card-rays"/>
-        {artworkUrl && <img className="art-layer art-background" src={artworkUrl} alt={card.artwork.name || 'Card artwork'} onLoad={(event) => { onArtworkLoad?.({ naturalWidth: event.currentTarget.naturalWidth, naturalHeight: event.currentTarget.naturalHeight }); if (!subject.separated) onStatusChange?.('ready'); }} onError={() => onStatusChange?.('error', new Error('Artwork failed to load'))}/>} 
-        <div className="card background-effect" data-foil={card.appearance.backgroundFoil} aria-hidden="true"><div className="card-foil"/></div>
-        {subjectUrl && <div className="art-layer art-subject-layer"><img className="subject-image" src={subjectUrl} alt={`${card.artwork.name || 'Card artwork'} foreground`}/>{card.appearance.subjectFoil !== 'none' && <div className="card subject-effect" data-foil={card.appearance.subjectFoil} style={{ maskImage: `url(${subjectUrl})`, WebkitMaskImage: `url(${subjectUrl})` }} aria-hidden="true"><div className="card-foil"/></div>}</div>}
-        <div className="card-glare"/><div className="card-copy"><span className="serial">HS–001</span><div><span className="rarity">PRISMATIC</span><h3>{card.artwork.name || 'UNTITLED'}</h3></div></div>
+      <article className={`card holo-card-face holo-card-front ${card.layout === 'standard' ? 'standard-card' : 'full-art-card'}`}>
+        {card.layout === 'standard'
+          ? <StandardCard card={card} artworkUrl={artworkUrl} subjectUrl={subjectUrl} onArtworkLoad={handleArtworkReady} onArtworkError={handleArtworkError}/>
+          : <FullArtCard card={card} artworkUrl={artworkUrl} subjectUrl={subjectUrl} onArtworkLoad={handleArtworkReady} onArtworkError={handleArtworkError}/>} 
       </article>
       <div className="holo-card-face holo-card-back" aria-hidden={!flipped}><img src={backUrl} alt={`${card.appearance.back} card back`}/></div>
     </div>

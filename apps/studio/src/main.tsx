@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ChevronDown, TriangleAlert } from 'lucide-react';
 import { CardRenderer, HoloEffectPreview, type ArtworkMetrics, type CardRendererStatus } from '@holo/card-renderer';
-import type { CardDefinition } from '@holo/card-schema';
+import type { CardDefinition, CardLayout } from '@holo/card-schema';
 import { EditableNumber } from './components/editable-number';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
@@ -23,10 +23,11 @@ const DEFAULT_MASK = { threshold: 128, feather: 24, expand: 0 } as const;
 
 const monoLabel = 'font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]';
 const fieldsetClass = 'm-[4px_0_28px] border-0 p-0';
+const textFieldClass = 'w-full border border-[#30333e] bg-[#11131b] px-3 py-2.5 font-sans text-[12px] text-[#e8e9ed] outline-none transition-colors placeholder:text-[#555966] focus:border-[var(--acid)]';
 
 type Post = { id: number; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
 type TagSuggestion = { name: string; post_count?: number | null };
-type HoloLayer = 'background' | 'subject';
+type HoloLayer = 'background' | 'subject' | 'frame';
 type MaskSettings = NonNullable<CardDefinition['artwork']['subject']>['mask'];
 
 function proxied(url: string) { return url ? `/api/image?url=${encodeURIComponent(url)}` : ''; }
@@ -38,7 +39,13 @@ function safeNumber(value: string | null, fallback: number, min: number, max: nu
 function normalizeTag(value: string) { return value.trim().replace(/\s+/g, '_'); }
 
 function defaultCard(): CardDefinition {
-  return { version: 1, artwork: { url: '', name: 'SELECT AN ARTWORK', x: 50, y: 48, scale: 1, mode: 'full', subject: { separated: false, mask: { ...DEFAULT_MASK } } }, appearance: { backgroundFoil: 'classic', subjectFoil: 'none', back: 'aurora' } };
+  return {
+    version: 2,
+    layout: 'full-art',
+    artwork: { url: '', name: 'SELECT AN ARTWORK', x: 50, y: 48, scale: 1, subject: { separated: false, mask: { ...DEFAULT_MASK } } },
+    content: { name: 'SELECT AN ARTWORK', attack: 100, defense: 100, description: '' },
+    appearance: { backgroundFoil: 'classic', subjectFoil: 'none', frameFoil: 'none', back: 'aurora' },
+  };
 }
 
 function cardFromQuery(): CardDefinition {
@@ -46,18 +53,25 @@ function cardFromQuery(): CardDefinition {
   const q = new URLSearchParams(location.search);
   const image = q.get('img');
   if (!image) return card;
+  const legacyName = q.get('name') || 'Shared artwork';
   card.artwork.url = image;
-  card.artwork.name = q.get('name') || 'Shared artwork';
+  card.artwork.name = legacyName;
   card.artwork.x = safeNumber(q.get('x'), 50, 0, 100);
   card.artwork.y = safeNumber(q.get('y'), 48, 0, 100);
   card.artwork.scale = safeNumber(q.get('scale'), 1, .5, 2.2);
-  card.artwork.mode = q.get('mode') === 'frame' ? 'frame' : 'full';
+  card.layout = q.get('layout') === 'standard' || q.get('mode') === 'frame' ? 'standard' : 'full-art';
+  card.content.name = q.get('cardName') || legacyName;
+  card.content.attack = Math.round(safeNumber(q.get('attack'), 100, 0, 9999));
+  card.content.defense = Math.round(safeNumber(q.get('defense'), 100, 0, 9999));
+  card.content.description = q.get('description') || '';
   card.artwork.subject = { separated: q.get('separated') === '1', mask: { threshold: safeNumber(q.get('maskThreshold'), 128, 0, 255), feather: safeNumber(q.get('maskFeather'), 24, 0, 127), expand: safeNumber(q.get('maskExpand'), 0, -8, 8) } };
   const backgroundFoil = q.get('foil');
   const subjectFoil = q.get('subjectFoil');
+  const frameFoil = q.get('frameFoil');
   const back = q.get('back');
   card.appearance.backgroundFoil = backgroundFoil && FOIL_IDS.has(backgroundFoil) ? backgroundFoil : 'classic';
   card.appearance.subjectFoil = subjectFoil && FOIL_IDS.has(subjectFoil) ? subjectFoil : 'none';
+  card.appearance.frameFoil = frameFoil && FOIL_IDS.has(frameFoil) ? frameFoil : 'none';
   card.appearance.back = back && BACK_IDS.has(back) ? back : 'aurora';
   return card;
 }
@@ -66,7 +80,10 @@ function syncQuery(card: CardDefinition) {
   if (!card.artwork.url) return history.replaceState(null, '', location.pathname);
   const q = new URLSearchParams();
   q.set('img', card.artwork.url); if (card.artwork.name) q.set('name', card.artwork.name);
-  q.set('foil', card.appearance.backgroundFoil); q.set('back', card.appearance.back); q.set('mode', card.artwork.mode);
+  q.set('layout', card.layout); q.set('cardName', card.content.name); q.set('attack', String(card.content.attack)); q.set('defense', String(card.content.defense));
+  if (card.content.description) q.set('description', card.content.description);
+  q.set('foil', card.appearance.backgroundFoil); q.set('back', card.appearance.back);
+  if (card.layout === 'standard' && card.appearance.frameFoil !== 'none') q.set('frameFoil', card.appearance.frameFoil);
   q.set('x', String(Math.round(card.artwork.x * 100) / 100)); q.set('y', String(Math.round(card.artwork.y * 100) / 100)); q.set('scale', String(Math.round(card.artwork.scale * 100) / 100));
   if (card.artwork.subject?.separated) { q.set('separated', '1'); q.set('maskThreshold', String(card.artwork.subject.mask.threshold)); q.set('maskFeather', String(card.artwork.subject.mask.feather)); q.set('maskExpand', String(card.artwork.subject.mask.expand)); q.set('subjectFoil', card.appearance.subjectFoil); }
   history.replaceState(null, '', `${location.pathname}?${q}`);
@@ -74,10 +91,6 @@ function syncQuery(card: CardDefinition) {
 
 function SectionHeader({ step, title, source }: { step: string; title: string; source?: string }) {
   return <div className="mb-[22px] flex items-start justify-between"><div className="flex items-center gap-[11px]"><span className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">{step}</span><h2 className="m-0 font-sans text-[15px] font-bold">{title}</h2></div>{source && <span className="border border-[var(--line)] px-[7px] py-[5px] font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#666976]">{source}</span>}</div>;
-}
-
-function ControlLabel({ label, value }: { label: string; value: string | number }) {
-  return <div className="mb-2.5 flex w-full justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>{label}</span><output className="text-[#d9dbe2]">{value}</output></div>;
 }
 
 function MaskControl({ label, value, min, max, onChange, warnLow = false }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; warnLow?: boolean }) {
@@ -111,7 +124,9 @@ function Studio() {
 
   useEffect(() => { syncQuery(card); }, [card]);
   useEffect(() => { void loadPosts(false, 1, 'hololive solo'); }, []);
-  useEffect(() => { if (!card.artwork.subject?.separated) setActiveHoloLayer('background'); }, [card.artwork.subject?.separated]);
+  useEffect(() => {
+    if ((activeHoloLayer === 'subject' && !card.artwork.subject?.separated) || (activeHoloLayer === 'frame' && card.layout !== 'standard')) setActiveHoloLayer('background');
+  }, [activeHoloLayer, card.artwork.subject?.separated, card.layout]);
 
   async function loadPosts(append: boolean, requestedPage: number, query: string) {
     setLoadingPosts(true);
@@ -127,29 +142,40 @@ function Studio() {
   }
 
   function selectPost(post: Post) {
+    const name = friendlyName(post);
     autoFitNextArtwork.current = true;
     setActiveHoloLayer('background');
     setMaskOpen(false);
     setPendingMask({ ...DEFAULT_MASK });
     setSelectedId(post.id);
-    setCard((current) => ({ ...current, artwork: { ...current.artwork, url: postImage(post), name: friendlyName(post), subject: { separated: false, mask: { ...DEFAULT_MASK } } }, appearance: { ...current.appearance, subjectFoil: 'none' } }));
+    setCard((current) => ({ ...current, artwork: { ...current.artwork, url: postImage(post), name, subject: { separated: false, mask: { ...DEFAULT_MASK } } }, content: { ...current.content, name }, appearance: { ...current.appearance, subjectFoil: 'none' } }));
   }
   function patchArtwork(patch: Partial<CardDefinition['artwork']>) { setCard((current) => ({ ...current, artwork: { ...current.artwork, ...patch } })); }
+  function patchContent(patch: Partial<CardDefinition['content']>) { setCard((current) => ({ ...current, content: { ...current.content, ...patch } })); }
   function patchAppearance(patch: Partial<CardDefinition['appearance']>) { setCard((current) => ({ ...current, appearance: { ...current.appearance, ...patch } })); }
+  function setLayout(layout: CardLayout) { setCard((current) => ({ ...current, layout })); }
   function patchPendingMask(patch: Partial<MaskSettings>) { setPendingMask((current) => ({ ...current, ...patch })); }
   function addTag(value: string) { const tag = normalizeTag(value); if (!tag || tags.includes(tag)) return tags; const next = [...tags, tag]; setTags(next); setTagInput(''); setSuggestions([]); return next; }
   async function requestSuggestions(value: string) { setTagInput(value); window.clearTimeout(suggestionTimer.current); if (!value.trim()) return setSuggestions([]); suggestionTimer.current = window.setTimeout(async () => { const response = await fetch(`/api/tags?q=${encodeURIComponent(value.trim())}`); if (response.ok) setSuggestions((await response.json()).filter((item: TagSuggestion) => !tags.includes(item.name))); }, 180); }
   function submitSearch(event: FormEvent) { event.preventDefault(); const nextTags = tagInput.trim() ? addTag(tagInput) : tags; void loadPosts(false, 1, nextTags.join(' ')); }
   function separateSubject() { setCard((current) => ({ ...current, artwork: { ...current.artwork, subject: { separated: true, mask: { ...pendingMask } } } })); setSubjectRefreshKey((value) => value + 1); }
   function resetPendingMask() { setPendingMask({ ...DEFAULT_MASK }); }
-  function handleArtworkLoad({ naturalWidth, naturalHeight }: ArtworkMetrics) { if (!autoFitNextArtwork.current || !naturalWidth || !naturalHeight) return; autoFitNextArtwork.current = false; const imageAspect = naturalWidth / naturalHeight; const baseHeight = card.artwork.mode === 'frame' ? 1 : .78; const coverScale = Math.max(.714 / (baseHeight * imageAspect), 1 / baseHeight); patchArtwork({ x: 50, y: 50, scale: clamp(coverScale, .5, 2.2) }); }
+  function handleArtworkLoad({ naturalWidth, naturalHeight }: ArtworkMetrics) {
+    if (!autoFitNextArtwork.current || !naturalWidth || !naturalHeight) return;
+    autoFitNextArtwork.current = false;
+    if (card.layout === 'standard') return patchArtwork({ x: 50, y: 50, scale: 1 });
+    const imageAspect = naturalWidth / naturalHeight;
+    const coverScale = Math.max(.714 / (.78 * imageAspect), 1 / .78);
+    patchArtwork({ x: 50, y: 50, scale: clamp(coverScale, .5, 2.2) });
+  }
   const handleRendererStatus = useCallback((status: CardRendererStatus, error?: Error) => { setRenderStatus(status); setRenderError(error?.message || ''); }, []);
 
   const subject = card.artwork.subject ?? { separated: false, mask: { ...DEFAULT_MASK } };
   const busy = ['loading-artwork', 'separating-subject', 'refining-mask'].includes(renderStatus);
   const disabled = !hasArtwork || busy;
-  const activeFoil = activeHoloLayer === 'subject' ? card.appearance.subjectFoil : card.appearance.backgroundFoil;
-  const chooseFoil = (foil: string) => activeHoloLayer === 'subject' ? patchAppearance({ subjectFoil: foil }) : patchAppearance({ backgroundFoil: foil });
+  const activeFoil = activeHoloLayer === 'subject' ? card.appearance.subjectFoil : activeHoloLayer === 'frame' ? card.appearance.frameFoil : card.appearance.backgroundFoil;
+  const chooseFoil = (foil: string) => activeHoloLayer === 'subject' ? patchAppearance({ subjectFoil: foil }) : activeHoloLayer === 'frame' ? patchAppearance({ frameFoil: foil }) : patchAppearance({ backgroundFoil: foil });
+  const holoTabsClass = card.layout === 'standard' && subject.separated ? 'grid-cols-3' : card.layout === 'standard' || subject.separated ? 'grid-cols-2' : 'grid-cols-1';
 
   return <>
     <header className="flex h-[76px] items-center justify-between border-b border-[var(--line)] px-[3vw]">
@@ -191,10 +217,10 @@ function Studio() {
           <fieldset className={fieldsetClass}>
             <legend className={cn(monoLabel, 'mb-2.5')}>Holo style</legend>
             <Tabs value={activeHoloLayer} onValueChange={(value) => setActiveHoloLayer(value as HoloLayer)}>
-              <TabsList className={cn(subject.separated ? 'grid-cols-2' : 'grid-cols-1', 'mb-2.5')}><TabsTrigger value="background">Background</TabsTrigger>{subject.separated && <TabsTrigger value="subject">Subject</TabsTrigger>}</TabsList>
+              <TabsList className={cn(holoTabsClass, 'mb-2.5')}><TabsTrigger value="background">Background</TabsTrigger>{subject.separated && <TabsTrigger value="subject">Subject</TabsTrigger>}{card.layout === 'standard' && <TabsTrigger value="frame">Frame</TabsTrigger>}</TabsList>
             </Tabs>
             <div className="grid max-h-[330px] grid-cols-2 gap-1.5 overflow-auto pr-[3px]">
-              {activeHoloLayer === 'subject' && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
+              {(activeHoloLayer === 'subject' || activeHoloLayer === 'frame') && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
               {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} className={cn('group relative isolate min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="pointer-events-none relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
             </div>
           </fieldset>
@@ -213,9 +239,27 @@ function Studio() {
             </CollapsibleContent>
           </Collapsible>
 
-          <fieldset className={fieldsetClass}><legend className={cn(monoLabel, 'mb-2.5')}>Card back</legend><div className="grid grid-cols-2 gap-1.5">{BACKS.map((back) => <Button variant="surface" size="compact" key={back} className={cn('justify-start capitalize', card.appearance.back === back && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => patchAppearance({ back })}>{back}</Button>)}</div></fieldset>
+          <fieldset className={fieldsetClass}>
+            <legend className={cn(monoLabel, 'mb-2.5')}>Card layout</legend>
+            <div className="grid grid-cols-2 bg-[#090a10] p-[3px]">
+              <Button variant="ghost" className={cn('border-0', card.layout === 'full-art' && 'bg-[#20222c] text-white')} onClick={() => setLayout('full-art')}>Full Art</Button>
+              <Button variant="ghost" className={cn('border-0', card.layout === 'standard' && 'bg-[#20222c] text-white')} onClick={() => setLayout('standard')}>Standard</Button>
+            </div>
+          </fieldset>
 
-          <fieldset className={fieldsetClass}><legend className={cn(monoLabel, 'mb-2.5')}>Art treatment</legend><div className="grid grid-cols-2 bg-[#090a10] p-[3px]"><Button variant="ghost" className={cn('border-0', card.artwork.mode === 'full' && 'bg-[#20222c] text-white')} onClick={() => patchArtwork({ mode: 'full' })}>Full body</Button><Button variant="ghost" className={cn('border-0', card.artwork.mode === 'frame' && 'bg-[#20222c] text-white')} onClick={() => patchArtwork({ mode: 'frame' })}>In frame</Button></div></fieldset>
+          <fieldset className={fieldsetClass}>
+            <legend className={cn(monoLabel, 'mb-2.5')}>Card details</legend>
+            <label className="mb-3 block"><span className={cn(monoLabel, 'mb-2 block')}>Name</span><input className={textFieldClass} value={card.content.name} maxLength={48} onChange={(event) => patchContent({ name: event.target.value })}/></label>
+            {card.layout === 'standard' && <>
+              <div className="mb-3 grid grid-cols-2 gap-2.5">
+                <label className="block"><span className={cn(monoLabel, 'mb-2 block')}>Attack</span><input type="number" className={cn(textFieldClass, '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none')} min={0} max={9999} step={1} value={card.content.attack} onChange={(event) => patchContent({ attack: Math.round(clamp(Number(event.target.value) || 0, 0, 9999)) })}/></label>
+                <label className="block"><span className={cn(monoLabel, 'mb-2 block')}>Defense</span><input type="number" className={cn(textFieldClass, '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none')} min={0} max={9999} step={1} value={card.content.defense} onChange={(event) => patchContent({ defense: Math.round(clamp(Number(event.target.value) || 0, 0, 9999)) })}/></label>
+              </div>
+              <label className="block"><span className={cn(monoLabel, 'mb-2 block')}>Description</span><textarea className={cn(textFieldClass, 'min-h-[92px] resize-y leading-[1.5]')} value={card.content.description} maxLength={280} placeholder="Describe the card…" onChange={(event) => patchContent({ description: event.target.value })}/></label>
+            </>}
+          </fieldset>
+
+          <fieldset className={fieldsetClass}><legend className={cn(monoLabel, 'mb-2.5')}>Card back</legend><div className="grid grid-cols-2 gap-1.5">{BACKS.map((back) => <Button variant="surface" size="compact" key={back} className={cn('justify-start capitalize', card.appearance.back === back && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => patchAppearance({ back })}>{back}</Button>)}</div></fieldset>
 
           <div className="my-6"><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Artwork scale</span><EditableNumber label="Artwork scale" value={Math.round(card.artwork.scale * 100)} min={50} max={220} onChange={(value) => patchArtwork({ scale: value / 100 })}/></div><Slider min={50} max={220} value={[card.artwork.scale * 100]} onValueChange={([value]) => patchArtwork({ scale: value / 100 })}/></div>
           <div className="my-6"><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Horizontal</span><EditableNumber label="Horizontal" value={Math.round(card.artwork.x)} min={0} max={100} onChange={(value) => patchArtwork({ x: value })}/></div><Slider min={0} max={100} value={[card.artwork.x]} onValueChange={([value]) => patchArtwork({ x: value })}/></div>
