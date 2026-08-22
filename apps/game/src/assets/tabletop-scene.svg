@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Fantasy tabletop scene</title>
+  <desc id="desc">A warm wooden fantasy table in perspective with a red cloth, potions, sword, coins, scrolls and candlelight.</desc>
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a552f"/><stop offset=".45" stop-color="#6c3f25"/><stop offset="1" stop-color="#4a2b1b"/>
+    </linearGradient>
+    <linearGradient id="cloth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a83e32"/><stop offset=".55" stop-color="#8e3029"/><stop offset="1" stop-color="#6e241f"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe19a"/><stop offset=".48" stop-color="#c58d35"/><stop offset="1" stop-color="#6a421c"/>
+    </linearGradient>
+    <radialGradient id="greenPotion" cx="35%" cy="22%" r="80%"><stop offset="0" stop-color="#d6ffd1" stop-opacity=".95"/><stop offset=".25" stop-color="#69d379"/><stop offset="1" stop-color="#1f6e43"/></radialGradient>
+    <radialGradient id="purplePotion" cx="30%" cy="20%" r="85%"><stop offset="0" stop-color="#f3d2ff"/><stop offset=".28" stop-color="#b76be0"/><stop offset="1" stop-color="#5b2c8e"/></radialGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2=".3"><stop offset="0" stop-color="#dfe6e8"/><stop offset=".4" stop-color="#8998a2"/><stop offset=".7" stop-color="#eef4f6"/><stop offset="1" stop-color="#69757d"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#2a150d" flood-opacity=".48"/></filter>
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="13"/></filter>
+    <pattern id="grain" width="120" height="90" patternUnits="userSpaceOnUse">
+      <path d="M0 16C24 5 47 28 76 15s32-7 44 0M0 52c28-15 45 10 78-2 18-6 29-4 42 2M10 78c24-7 47 11 92-4" fill="none" stroke="#2c160d" stroke-opacity=".18" stroke-width="5"/>
+      <path d="M6 30c30-9 54 5 103-4M2 64c31-7 61 6 108-5" fill="none" stroke="#c48752" stroke-opacity=".11" stroke-width="2"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="900" fill="#e9d7b7"/>
+  <path d="M60 70H1540L1490 860H110L60 70Z" fill="url(#wood)" filter="url(#shadow)"/>
+  <path d="M60 70H1540L1490 860H110L60 70Z" fill="url(#grain)" opacity=".9"/>
+  <g opacity=".2" stroke="#2b160d" stroke-width="8">
+    <path d="M410 78L385 850"/><path d="M795 75L800 855"/><path d="M1180 78L1210 850"/>
+  </g>
+
+  <path d="M410 120H1190L1275 820H325L410 120Z" fill="#3f1d18" opacity=".28" filter="url(#softShadow)"/>
+  <path d="M430 105H1170L1244 792H350L430 105Z" fill="url(#cloth)" stroke="#cc8a50" stroke-width="6"/>
+  <path d="M455 132H1145L1211 764H384L455 132Z" fill="none" stroke="#e1b063" stroke-width="3" stroke-dasharray="20 10" opacity=".82"/>
+  <path d="M500 172H1100L1150 722H445L500 172Z" fill="none" stroke="#e4b469" stroke-width="2" opacity=".5"/>
+  <g fill="none" stroke="#e6bc72" opacity=".34">
+    <ellipse cx="800" cy="408" rx="255" ry="128" stroke-width="3"/>
+    <ellipse cx="800" cy="408" rx="190" ry="94" stroke-width="2"/>
+    <path d="M800 276v264M575 408h450M638 324l324 168M638 492l324-168" stroke-width="2"/>
+    <circle cx="800" cy="408" r="42" stroke-width="3"/>
+  </g>
+
+  <g transform="translate(100 185) rotate(-7)" filter="url(#shadow)">
+    <rect x="0" y="92" width="145" height="170" rx="44" fill="url(#greenPotion)" stroke="#d9c294" stroke-width="6"/>
+    <path d="M48 25h50v83H48z" fill="#b8c7c1" fill-opacity=".58" stroke="#d6cfaf" stroke-width="5"/>
+    <rect x="42" y="8" width="62" height="27" rx="7" fill="#8a5b36" stroke="#5c3521" stroke-width="4"/>
+    <ellipse cx="55" cy="128" rx="25" ry="12" fill="#fff" opacity=".38" transform="rotate(-25 55 128)"/>
+  </g>
+  <g transform="translate(255 120) rotate(5) scale(.72)" filter="url(#shadow)">
+    <rect x="0" y="92" width="145" height="170" rx="44" fill="url(#purplePotion)" stroke="#d9c294" stroke-width="6"/>
+    <path d="M48 25h50v83H48z" fill="#b8c7c1" fill-opacity=".58" stroke="#d6cfaf" stroke-width="5"/>
+    <rect x="42" y="8" width="62" height="27" rx="7" fill="#8a5b36" stroke="#5c3521" stroke-width="4"/>
+  </g>
+
+  <g transform="translate(1225 190) rotate(18)" filter="url(#shadow)">
+    <path d="M0 90L270 0l-18 36L22 132Z" fill="url(#steel)" stroke="#50575e" stroke-width="5"/>
+    <path d="M18 88L-42 132" stroke="#8a5a2d" stroke-width="30" stroke-linecap="round"/>
+    <path d="M-20 104l40 44" stroke="#cf9e54" stroke-width="10"/>
+    <circle cx="-22" cy="124" r="12" fill="#6ea6c8" stroke="#c9a15b" stroke-width="6"/>
+  </g>
+
+  <g transform="translate(1280 520) rotate(-8)" filter="url(#shadow)">
+    <rect x="0" y="0" width="180" height="185" rx="14" fill="#4f3a27" stroke="#b48242" stroke-width="6"/>
+    <path d="M20 18h140v145H20z" fill="#6c4e31" stroke="#d0a75c" stroke-width="3"/>
+    <circle cx="90" cy="90" r="42" fill="#29475a" stroke="#d4a24c" stroke-width="8"/>
+    <path d="M90 48l12 30 30 12-30 12-12 30-12-30-30-12 30-12Z" fill="#ddb75e"/>
+  </g>
+
+  <g transform="translate(95 580) rotate(-11)" filter="url(#shadow)">
+    <rect x="0" y="0" width="235" height="92" rx="46" fill="#d9c19a" stroke="#8f6b42" stroke-width="4"/>
+    <ellipse cx="0" cy="46" rx="20" ry="46" fill="#b79368"/>
+    <ellipse cx="235" cy="46" rx="20" ry="46" fill="#b79368"/>
+    <path d="M45 20c55 20 91-15 145 18M52 52c38-12 85 8 127-2" fill="none" stroke="#816242" stroke-width="3" opacity=".65"/>
+    <path d="M12 44h220" stroke="#8a2f28" stroke-width="14" opacity=".85"/>
+  </g>
+
+  <g fill="url(#gold)" stroke="#6e431b" stroke-width="4" filter="url(#shadow)">
+    <ellipse cx="420" cy="686" rx="34" ry="18"/><ellipse cx="470" cy="715" rx="31" ry="17"/><ellipse cx="520" cy="685" rx="28" ry="16"/>
+    <ellipse cx="1338" cy="362" rx="32" ry="17"/><ellipse cx="1390" cy="390" rx="27" ry="15"/>
+  </g>
+  <g stroke="#7f5426" stroke-width="3" fill="none" opacity=".72">
+    <path d="M407 684l13-13 13 13-13 13Z"/><path d="M458 712l12-12 12 12-12 12Z"/><path d="M1326 360l12-12 12 12-12 12Z"/>
+  </g>
+
+  <g transform="translate(135 90)" filter="url(#shadow)">
+    <ellipse cx="70" cy="105" rx="53" ry="22" fill="#4e2d1c"/>
+    <rect x="47" y="15" width="46" height="94" rx="20" fill="#e6b15e"/>
+    <path d="M70 15c-17-18-7-38 3-53 18 22 17 39-3 53Z" fill="#ffd36f"/><path d="M72 9c-8-11-3-22 3-31 8 11 8 21-3 31Z" fill="#fff0a8"/>
+  </g>
+
+  <g fill="#2a160e" opacity=".18">
+    <ellipse cx="210" cy="520" rx="130" ry="26"/><ellipse cx="1320" cy="485" rx="180" ry="34"/><ellipse cx="1340" cy="742" rx="140" ry="26"/>
+  </g>
+</svg>
