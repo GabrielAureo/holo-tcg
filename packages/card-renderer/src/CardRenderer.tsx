@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import type { CardDefinition } from '@holo/card-schema';
 import { FullArtCard } from './layouts/FullArtCard';
 import { StandardCard } from './layouts/StandardCard';
+import { cacheSubject, getCachedSubject } from './subject-cache';
 import './index.css';
 
 const identityArtworkUrl = (url: string) => url;
@@ -51,7 +52,7 @@ function runWorker(worker: Worker, payload: Record<string, unknown>, transfer: T
   });
 }
 
-function useSeparatedSubject(artworkUrl: string, separated: boolean, refreshKey: number, report: CardRendererProps['onStatusChange']) {
+function useSeparatedSubject(artworkUrl: string, artworkCacheKey: string, separated: boolean, refreshKey: number, report: CardRendererProps['onStatusChange']) {
   const [baseSubject, setBaseSubject] = useState<Blob | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -59,6 +60,11 @@ function useSeparatedSubject(artworkUrl: string, separated: boolean, refreshKey:
     setBaseSubject(null);
     void (async () => {
       try {
+        if (refreshKey === 0) {
+          const cached = await getCachedSubject(artworkCacheKey);
+          if (controller.signal.aborted) return;
+          if (cached) { setBaseSubject(cached); return; }
+        }
         report?.('loading-artwork');
         const response = await fetch(artworkUrl, { credentials: 'same-origin', signal: controller.signal });
         if (!response.ok) throw new Error(`Artwork request returned ${response.status}`);
@@ -66,7 +72,10 @@ function useSeparatedSubject(artworkUrl: string, separated: boolean, refreshKey:
         const input = await response.arrayBuffer();
         report?.('separating-subject');
         const result = await runWorker(new Worker(new URL('./subject-worker.ts', import.meta.url), { type: 'module' }), { buffer: input, contentType }, [input], controller.signal);
-        if (!controller.signal.aborted) setBaseSubject(new Blob([result.buffer], { type: result.contentType }));
+        if (controller.signal.aborted) return;
+        const blob = new Blob([result.buffer], { type: result.contentType });
+        setBaseSubject(blob);
+        void cacheSubject(artworkCacheKey, blob);
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === 'AbortError') return;
         const error = cause instanceof Error ? cause : new Error(String(cause));
@@ -74,7 +83,7 @@ function useSeparatedSubject(artworkUrl: string, separated: boolean, refreshKey:
       }
     })();
     return () => controller.abort();
-  }, [artworkUrl, separated, refreshKey]);
+  }, [artworkUrl, artworkCacheKey, separated, refreshKey]);
   return baseSubject;
 }
 
@@ -112,7 +121,7 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   const [flipped, setFlipped] = useState(false);
   const artworkUrl = useMemo(() => card.artwork.url ? resolveArtworkUrl(card.artwork.url) : '', [card.artwork.url, resolveArtworkUrl]);
   const subject = card.artwork.subject ?? { separated: false, mask: { threshold: 128, feather: 24, expand: 0 } };
-  const baseSubject = useSeparatedSubject(artworkUrl, subject.separated, subjectRefreshKey, onStatusChange);
+  const baseSubject = useSeparatedSubject(artworkUrl, card.artwork.url, subject.separated, subjectRefreshKey, onStatusChange);
   const subjectUrl = useRefinedSubject(baseSubject, subject.mask, onStatusChange);
   const backUrl = cardBacks[card.appearance.back as keyof typeof cardBacks] || cardBacks.aurora;
   const style: RendererStyle = { '--art-x': `${card.artwork.x}%`, '--art-y': `${card.artwork.y}%`, '--art-scale': card.artwork.scale, '--mx': '50%', '--my': '50%', '--posx': '50%', '--posy': '50%', '--hyp': 0, '--rx': '0deg', '--ry': '0deg' };
