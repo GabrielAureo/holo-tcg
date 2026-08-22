@@ -8,10 +8,13 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace @holo/studio",
+    "dev:game": "npm run dev --workspace @holo/game",
     "build": "npm run build --workspace @holo/studio",
+    "build:game": "npm run build --workspace @holo/game",
     "start": "npm run start --workspace @holo/studio",
     "test": "npm run test --workspace @holo/studio",
-    "typecheck": "npm run typecheck --workspace @holo/studio"
+    "typecheck": "npm run typecheck --workspace @holo/studio",
+    "typecheck:game": "npm run typecheck --workspace @holo/game"
   },
   "engines": {
     "node": ">=20"
