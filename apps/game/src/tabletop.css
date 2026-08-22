@@ -26,3 +26,20 @@
 @media(max-width:1050px){.drop-stage{min-height:700px;background-position:58% center}.stage-copy{left:3%;top:5%;width:285px}.drop-core{left:59%;width:440px}.stage-copy h1{font-size:30px}.stage-lore{font-size:10px}}
 @media(max-width:760px){.game-hud{padding:10px 14px}.drop-stage{min-height:690px;background-position:center;background-size:auto 100%}.stage-copy{left:50%;top:3%;width:min(90%,360px);transform:translateX(-50%) rotate(-.6deg);padding:17px 20px}.stage-copy .stage-index,.stage-lore{display:none}.stage-kicker{margin:4px 0 7px}.stage-copy h1{font-size:25px}.drop-core{left:50%;top:57%;width:360px;height:500px}.drop-card-back{top:30%;width:170px}.summon-button{bottom:8%;min-width:220px;min-height:70px}.collection-section{padding-left:18px;padding-right:18px}}
 @media(max-width:430px){.drop-stage{min-height:620px}.drop-core{top:59%;width:310px;height:450px}.drop-card-back{width:145px}.summon-button{min-width:200px;min-height:64px}.summon-button span{font-size:15px}}
+
+/* The deck is a physical object: its top card travels to the center before it flips. */
+.card-deck{position:absolute;left:50%;top:27%;width:208px;aspect-ratio:.714;transform:translate(-50%,-50%) perspective(650px) rotateX(47deg) rotateZ(-1.5deg);transform-origin:50% 100%;filter:drop-shadow(0 38px 14px #28100870);pointer-events:none}
+.card-deck>i{position:absolute;inset:0;border:4px solid #8c632e;border-radius:16px;background:#191b2a;box-shadow:0 0 0 4px #21150e,0 0 0 6px #b8873e}.card-deck>i:first-child{transform:translate(10px,10px)}.card-deck>i:nth-child(2){transform:translate(5px,5px)}
+.card-deck .drop-card-back{inset:0;left:0;top:0;width:100%;transform:none;background:#11182c url('./assets/royal-card-back.svg') center/cover no-repeat;box-shadow:0 0 0 4px #21150e,0 0 0 7px #d0a358}
+.is-ready .card-deck{animation:deckReady 2.2s ease-in-out infinite}.is-ready .card-deck .drop-card-back{transform:none;box-shadow:0 0 0 4px #21150e,0 0 0 7px #e0b45b,0 0 35px #ffc96766}
+.drop-phase-drawing .card-deck{animation:none}.drop-phase-drawing .card-deck .drop-card-back{animation:drawFromDeck .82s cubic-bezier(.19,.82,.23,1) forwards}
+.table-card-reveal{position:absolute;z-index:8;left:50%;top:48%;width:255px;opacity:0;transform:translate(-50%,-50%) rotateY(90deg) scale(.82);filter:drop-shadow(0 28px 24px #260f087a)}
+.drop-phase-drawing .table-card-reveal{animation:hideUntilFlip .82s linear forwards}.drop-phase-revealed .table-card-reveal{opacity:1;transform:translate(-50%,-50%) rotateY(0) scale(1);animation:revealCard .55s cubic-bezier(.2,.9,.25,1.2)}
+.table-featured-card{width:100%}.reveal-rarity{position:absolute;left:50%;bottom:-35px;transform:translateX(-50%);padding:8px 16px;border:2px solid #c69343;border-radius:999px;background:#3c2117;color:#ffe5a7;font:700 10px/1 Georgia,serif;letter-spacing:.15em;text-transform:uppercase;white-space:nowrap;box-shadow:0 7px 12px #2b120a77}
+@keyframes deckReady{50%{transform:translate(-50%,-54%) perspective(650px) rotateX(43deg) rotateZ(-1deg);filter:drop-shadow(0 42px 18px #28100878) drop-shadow(0 0 17px #ffc96766)}}
+@keyframes drawFromDeck{0%{transform:none}52%{transform:translateY(125px) rotateX(-25deg) rotateZ(5deg) scale(1.08)}100%{transform:translateY(175px) rotateY(90deg) rotateZ(2deg) scale(1.2)}}
+@keyframes hideUntilFlip{0%,90%{opacity:0}100%{opacity:1;transform:translate(-50%,-50%) rotateY(88deg) scale(.85)}}
+@keyframes revealCard{0%{opacity:0;transform:translate(-50%,-50%) rotateY(88deg) scale(.85)}100%{opacity:1;transform:translate(-50%,-50%) rotateY(0) scale(1)}}
+@media(max-width:760px){.card-deck{top:30%;width:170px}.table-card-reveal{width:205px}}
+@media(max-width:430px){.card-deck{width:145px}.table-card-reveal{width:175px}}
+@media(prefers-reduced-motion:reduce){.is-ready .card-deck,.drop-phase-drawing .drop-card-back,.drop-phase-drawing .table-card-reveal,.drop-phase-revealed .table-card-reveal{animation:none}.drop-phase-revealed .table-card-reveal{opacity:1;transform:translate(-50%,-50%)}}

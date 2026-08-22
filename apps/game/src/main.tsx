@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { CardRenderer } from '@holo/card-renderer';
 import type { CardDefinition } from '@holo/card-schema';
 import './style.css';
+import './tabletop.css';
 
 type Rarity = 'common' | 'uncommon' | 'rare' | 'legendary';
 type CardTemplate = {
@@ -124,6 +125,7 @@ function Game() {
   const [state, setState] = useState<GameState>(() => settleGold(loadState()));
   const [now, setNow] = useState(Date.now());
   const [latestDropId, setLatestDropId] = useState<string | null>(null);
+  const [dropPhase, setDropPhase] = useState<'idle' | 'drawing' | 'revealed'>('idle');
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -145,15 +147,18 @@ function Game() {
   const latestDrop = latestDropId ? state.cards.find((card) => card.id === latestDropId) ?? null : null;
 
   function claimDrop() {
-    if (!canDrop) return;
+    if (!canDrop || dropPhase !== 'idle') return;
     const dropped = createDrop();
     const tick = Date.now();
     setNow(tick);
     setLatestDropId(dropped.id);
+    setDropPhase('drawing');
     setState((current) => {
       const settled = settleGold(current, tick);
       return { ...settled, cards: [dropped, ...settled.cards], lastDropAt: tick };
     });
+    window.setTimeout(() => setDropPhase('revealed'), 820);
+    window.setTimeout(() => setDropPhase('idle'), 3100);
   }
 
   return <main className="game-shell">
@@ -180,12 +185,16 @@ function Game() {
         <p className="stage-lore">Every pull joins your collection and feeds the gold stream. Holographic variants are scarce and generate {HOLO_MULTIPLIER}× more.</p>
       </div>
 
-      <div className="drop-core">
+      <div className={`drop-core drop-phase-${dropPhase}`}>
         <div className="drop-rings" aria-hidden="true"><i /><i /><i /></div>
-        <div className="drop-card-back" aria-hidden="true"><span>H</span></div>
-        <button className="summon-button" disabled={!canDrop} onClick={claimDrop}>
-          <span>{canDrop ? 'CLAIM DROP' : formatCountdown(remaining)}</span>
-          <small>{canDrop ? 'FREE SIGNAL' : 'RECHARGING'}</small>
+        <div className="card-deck" aria-label="Monte de cartas"><i /><i /><div className="drop-card-back"><span>H</span></div></div>
+        {latestDrop && dropPhase !== 'idle' && <div className="table-card-reveal" aria-live="polite">
+          <CardRenderer card={definitionFor(latestDrop)} className="table-featured-card" />
+          <span className="reveal-rarity">{templateFor(latestDrop).rarity}</span>
+        </div>}
+        <button className="summon-button" disabled={!canDrop || dropPhase !== 'idle'} onClick={claimDrop}>
+          <span>{canDrop ? (dropPhase === 'idle' ? 'PUXAR CARTA' : 'REVELANDO…') : formatCountdown(remaining)}</span>
+          <small>{canDrop ? 'DROP GRATUITO' : 'RECARREGANDO'}</small>
         </button>
       </div>
     </section>

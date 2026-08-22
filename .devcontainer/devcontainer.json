@@ -8,6 +8,6 @@
       "onAutoForward": "notify"
     }
   },
-  "postCreateCommand": "npm install",
-  "postStartCommand": "nohup npm run dev > /tmp/holo-studio.log 2>&1 &"
+  "postCreateCommand": "npm ci --include=dev",
+  "postStartCommand": "npm ci --include=dev && nohup npm run dev > /tmp/holo-studio.log 2>&1 &"
 }
