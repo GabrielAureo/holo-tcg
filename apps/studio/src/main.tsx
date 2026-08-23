@@ -20,12 +20,19 @@ const BACKS = ['aurora', 'cosmic', 'gold', 'minimal'] as const;
 const FOIL_IDS = new Set<string>(FOILS.map(([id]) => id));
 const BACK_IDS = new Set<string>(BACKS);
 const DEFAULT_MASK = { threshold: 128, feather: 24, expand: 0 } as const;
+const PROVIDERS = [
+  ['danbooru', 'Danbooru'],
+  ['konachan', 'Konachan'],
+  ['zerochan', 'Zerochan'],
+] as const;
+
+type ProviderId = typeof PROVIDERS[number][0];
 
 const monoLabel = 'font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]';
 const fieldsetClass = 'm-[4px_0_28px] border-0 p-0';
 const textFieldClass = 'w-full border border-[#30333e] bg-[#11131b] px-3 py-2.5 font-sans text-[12px] text-[#e8e9ed] outline-none transition-colors placeholder:text-[#555966] focus:border-[var(--acid)]';
 
-type Post = { id: number; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
+type Post = { id: string; provider?: ProviderId; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
 type TagSuggestion = { name: string; post_count?: number | null };
 type HoloLayer = 'background' | 'subject' | 'frame';
 type MaskSettings = NonNullable<CardDefinition['artwork']['subject']>['mask'];
@@ -34,6 +41,7 @@ function proxied(url: string) { return url ? `/api/image?url=${encodeURIComponen
 function postImage(post: Post) { return post.large_file_url || post.file_url || post.preview_file_url || ''; }
 function postPreview(post: Post) { return post.preview_file_url || post.large_file_url || post.file_url || ''; }
 function friendlyName(post: Post) { const tag = post.tag_string_character?.split(' ')[0] || 'untitled character'; return tag.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function providerLabel(id?: ProviderId) { return PROVIDERS.find(([provider]) => provider === id)?.[1] || 'Artwork'; }
 function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 function safeNumber(value: string | null, fallback: number, min: number, max: number) { const parsed = Number(value); return Number.isFinite(parsed) ? clamp(parsed, min, max) : fallback; }
 function normalizeTag(value: string) { return value.trim().replace(/\s+/g, '_'); }
@@ -106,12 +114,14 @@ function MaskControl({ label, value, min, max, onChange, warnLow = false }: { la
 function Studio() {
   const [card, setCard] = useState<CardDefinition>(() => cardFromQuery());
   const [posts, setPosts] = useState<Post[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<ProviderId[]>(['danbooru']);
   const [tags, setTags] = useState(['hololive', 'solo']);
   const [tagInput, setTagInput] = useState('');
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [page, setPage] = useState(1);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [searchNotice, setSearchNotice] = useState('');
   const [renderStatus, setRenderStatus] = useState<CardRendererStatus>('idle');
   const [renderError, setRenderError] = useState('');
   const [subjectRefreshKey, setSubjectRefreshKey] = useState(0);
@@ -128,16 +138,20 @@ function Studio() {
     if ((activeHoloLayer === 'subject' && !card.artwork.subject?.separated) || (activeHoloLayer === 'frame' && card.layout !== 'standard')) setActiveHoloLayer('background');
   }, [activeHoloLayer, card.artwork.subject?.separated, card.layout]);
 
-  async function loadPosts(append: boolean, requestedPage: number, query: string) {
+  async function loadPosts(append: boolean, requestedPage: number, query: string, providerIds = selectedProviders) {
     setLoadingPosts(true);
     try {
-      const response = await fetch(`/api/posts?q=${encodeURIComponent(query.trim())}&page=${requestedPage}`);
+      const params = new URLSearchParams({ q: query.trim(), page: String(requestedPage), providers: providerIds.join(',') });
+      const response = await fetch(`/api/posts?${params}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || 'The imageboard could not be reached.');
-      setPosts((previous) => append ? [...previous, ...payload] : payload); setPage(requestedPage);
+      const items: Post[] = Array.isArray(payload) ? payload : payload.items || [];
+      const errors = Array.isArray(payload?.errors) ? payload.errors : [];
+      setSearchNotice(errors.length ? `Unavailable: ${errors.map((item: { label: string }) => item.label).join(', ')}` : '');
+      setPosts((previous) => append ? [...previous, ...items] : items); setPage(requestedPage);
     } catch (error) {
       if (!append) setPosts([]);
-      setRenderError(error instanceof Error ? error.message : String(error));
+      setSearchNotice(error instanceof Error ? error.message : String(error));
     } finally { setLoadingPosts(false); }
   }
 
@@ -155,6 +169,14 @@ function Studio() {
   function patchAppearance(patch: Partial<CardDefinition['appearance']>) { setCard((current) => ({ ...current, appearance: { ...current.appearance, ...patch } })); }
   function setLayout(layout: CardLayout) { setCard((current) => ({ ...current, layout })); }
   function patchPendingMask(patch: Partial<MaskSettings>) { setPendingMask((current) => ({ ...current, ...patch })); }
+  function toggleProvider(provider: ProviderId) {
+    if (selectedProviders.includes(provider) && selectedProviders.length === 1) return;
+    const next = selectedProviders.includes(provider) ? selectedProviders.filter((item) => item !== provider) : [...selectedProviders, provider];
+    setSelectedProviders(next);
+    setPosts([]);
+    setPage(1);
+    setSearchNotice('');
+  }
   function addTag(value: string) { const tag = normalizeTag(value); if (!tag || tags.includes(tag)) return tags; const next = [...tags, tag]; setTags(next); setTagInput(''); setSuggestions([]); return next; }
   async function requestSuggestions(value: string) { setTagInput(value); window.clearTimeout(suggestionTimer.current); if (!value.trim()) return setSuggestions([]); suggestionTimer.current = window.setTimeout(async () => { const response = await fetch(`/api/tags?q=${encodeURIComponent(value.trim())}`); if (response.ok) setSuggestions((await response.json()).filter((item: TagSuggestion) => !tags.includes(item.name))); }, 180); }
   function submitSearch(event: FormEvent) { event.preventDefault(); const nextTags = tagInput.trim() ? addTag(tagInput) : tags; void loadPosts(false, 1, nextTags.join(' ')); }
@@ -192,7 +214,11 @@ function Studio() {
 
       <div className="grid min-h-[680px] grid-cols-[minmax(250px,320px)_minmax(380px,1fr)_minmax(250px,320px)] border border-[var(--line)] bg-[#0c0d14] max-[1000px]:grid-cols-[280px_1fr] max-[700px]:flex max-[700px]:flex-col min-[1001px]:h-[680px] min-[1001px]:min-h-0">
         <aside className="min-h-0 border-r border-[var(--line)] bg-[#0d0e15] p-[26px] max-[700px]:border-b max-[700px]:border-r-0">
-          <SectionHeader step="01" title="Find artwork" source="DANBOORU" />
+          <SectionHeader step="01" title="Find artwork" source="MULTI-SOURCE" />
+          <div className="mb-[15px]">
+            <div className="mb-2.5 flex items-center justify-between"><span className={monoLabel}>Sources</span><small className="font-mono text-[8px] uppercase tracking-[.06em] text-[#60636f]">Select one or more</small></div>
+            <div className="grid grid-cols-3 gap-1.5">{PROVIDERS.map(([id, label]) => <Button variant="surface" size="compact" key={id} aria-pressed={selectedProviders.includes(id)} className={cn('min-w-0 px-1.5 text-[8px]', selectedProviders.includes(id) && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} disabled={selectedProviders.includes(id) && selectedProviders.length === 1} onClick={() => toggleProvider(id)}>{label}</Button>)}</div>
+          </div>
           <form className="flex items-stretch border border-[#323440] bg-[#11121b] focus-within:border-[#707482]" autoComplete="off" onSubmit={submitSearch}>
             <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-[5px] p-[7px]">
               {tags.map((tag, index) => <Button variant="surface" size="compact" className="h-auto max-w-full gap-1.5 px-[7px] py-[5px] normal-case text-[#d7d9e0]" key={tag} onClick={() => setTags(tags.filter((_, i) => i !== index))}><span className="overflow-hidden text-ellipsis">{tag}</span><b className="text-[13px] font-normal leading-none text-[#777b88]">×</b></Button>)}
@@ -201,9 +227,10 @@ function Studio() {
             </div>
             <button className="w-11 shrink-0 border-0 border-l border-[var(--line)] bg-transparent text-[var(--acid)]" type="submit">↗</button>
           </form>
-          <div className="mt-[15px] grid max-h-[440px] grid-cols-3 gap-[7px] overflow-auto pr-[3px] max-[700px]:max-h-[360px] max-[700px]:grid-cols-4">{loadingPosts && !posts.length ? <div className="col-span-full px-2.5 py-[60px] text-center font-mono text-[11px] leading-[1.8] text-[var(--muted)]">Loading artwork…</div> : posts.map((post) => <button className={cn('relative aspect-[.76] overflow-hidden border border-transparent bg-[#171821] p-0', selectedId === post.id && 'border-[var(--acid)]')} key={post.id} onClick={() => selectPost(post)}>{postPreview(post) ? <img className="size-full object-cover saturate-[.8] transition hover:scale-105 hover:saturate-[1.1]" src={proxied(postPreview(post))} loading="lazy" alt={friendlyName(post)} /> : <div className="grid size-full place-items-center bg-[repeating-linear-gradient(135deg,#171821_0_8px,#12131b_8px_16px)] p-2 text-center font-mono text-[7px] text-[#666a77]">NO IMAGE</div>}<span className="absolute bottom-1 left-1 bg-[#090a10cc] p-[3px] font-mono text-[7px] text-[#c7c9d0]">{post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>)}</div>
+          <div className="mt-[15px] grid max-h-[440px] grid-cols-3 gap-[7px] overflow-auto pr-[3px] max-[700px]:max-h-[360px] max-[700px]:grid-cols-4">{loadingPosts && !posts.length ? <div className="col-span-full px-2.5 py-[60px] text-center font-mono text-[11px] leading-[1.8] text-[var(--muted)]">Loading artwork…</div> : posts.map((post) => <button className={cn('relative aspect-[.76] overflow-hidden border border-transparent bg-[#171821] p-0', selectedId === post.id && 'border-[var(--acid)]')} key={post.id} onClick={() => selectPost(post)}>{postPreview(post) ? <img className="size-full object-cover saturate-[.8] transition hover:scale-105 hover:saturate-[1.1]" src={proxied(postPreview(post))} loading="lazy" alt={friendlyName(post)} /> : <div className="grid size-full place-items-center bg-[repeating-linear-gradient(135deg,#171821_0_8px,#12131b_8px_16px)] p-2 text-center font-mono text-[7px] text-[#666a77]">NO IMAGE</div>}<span className="absolute left-1 top-1 bg-[#090a10cc] p-[3px] font-mono text-[7px] uppercase text-[var(--acid)]">{providerLabel(post.provider)}</span><span className="absolute bottom-1 left-1 bg-[#090a10cc] p-[3px] font-mono text-[7px] text-[#c7c9d0]">{post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>)}</div>
           <Button className="my-3.5 w-full" disabled={loadingPosts} onClick={() => void loadPosts(true, page + 1, tags.join(' '))}>Load more</Button>
-          <small className="block text-[9px] leading-[1.5] text-[#60626d]">Artwork is served by Danbooru and belongs to its respective artists.</small>
+          {searchNotice && <p className="mb-3 text-[9px] leading-[1.5] text-amber-300">{searchNotice}</p>}
+          <small className="block text-[9px] leading-[1.5] text-[#60626d]">Artwork is served by the selected providers and belongs to its respective artists.</small>
         </aside>
 
         <section className="relative flex flex-col items-center justify-center overflow-hidden bg-[linear-gradient(#14162080_1px,transparent_1px),linear-gradient(90deg,#14162080_1px,transparent_1px)] bg-[size:36px_36px] [perspective:1000px] max-[1000px]:min-h-[650px] max-[700px]:order-first max-[700px]:min-h-[580px]" aria-label="Card preview">

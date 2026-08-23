@@ -8,7 +8,8 @@ It lets you browse character artwork, place it in a collectible-card layout, app
 
 ## Features
 
-- Search Danbooru artwork by tags with autocomplete.
+- Search Danbooru, Konachan, and Zerochan artwork by tags.
+- Select one or more artwork providers; multiple providers are queried in parallel.
 - Position, drag, auto-fit, and scale artwork inside the card.
 - Full-body and in-frame art treatments.
 - Multiple holographic effect recipes and reusable effect previews.
@@ -26,6 +27,9 @@ It lets you browse character artwork, place it in a collectible-card layout, app
 .
 ├── apps/
 │   └── studio/                 # React/Vite card editor + Node API server
+│       ├── api/
+│       │   ├── providers/       # Danbooru, Konachan, and Zerochan adapters
+│       │   └── artwork-provider.mjs
 │       ├── src/
 │       ├── test/
 │       ├── index.html
@@ -89,7 +93,9 @@ The holo maps are committed under `packages/card-renderer/assets/holo` and bundl
 
 ### `@holo/studio`
 
-The Studio owns artwork search/tag autocomplete, editor controls, `CardDefinition` state, query-param sharing, Danbooru integration, and the local Node API/image proxy. Its controls update `CardDefinition` and pass it to `CardRenderer`; it does not own card DOM or card-effect CSS.
+The Studio owns artwork search/tag autocomplete, editor controls, `CardDefinition` state, query-param sharing, provider adapters, and the local Node API/image proxy. Its controls update `CardDefinition` and pass it to `CardRenderer`; it does not own card DOM or card-effect CSS.
+
+Artwork providers implement the `ArtworkProvider` interface in `apps/studio/api/artwork-provider.mjs`. The adapters hide provider-specific URLs, pagination, filters, and response shapes behind a common `Artwork` result. The aggregator receives providers by dependency injection and uses parallel requests when more than one provider is selected.
 
 ## Tech stack
 
@@ -101,6 +107,8 @@ The Studio owns artwork search/tag autocomplete, editor controls, `CardDefinitio
 - Web Workers
 - IMG.LY background removal
 - Danbooru API
+- Konachan API
+- Zerochan read-only JSON API
 
 ## Getting started
 
@@ -128,18 +136,22 @@ npm test
 
 The application listens on port `4173` by default. Override it with `PORT=3000 npm run dev`.
 
-## Danbooru integration
+## Artwork providers
 
 Provider-specific behavior stays in the Studio rather than the renderer. The Node server exposes:
 
 ```text
 GET /api/health
-GET /api/posts
+GET /api/posts?q=hololive+solo&page=1&providers=danbooru,konachan
 GET /api/tags
 GET /api/image
 ```
 
-The image proxy is restricted to HTTPS URLs from `donmai.us` and its subdomains so browser-side processing can access image bytes without cross-origin restrictions getting in the way.
+`providers` accepts one or more of `danbooru`, `konachan`, and `zerochan`. At least one provider is required. When multiple providers are selected, their searches run in parallel. A provider failure does not hide successful results from the others; the response includes those failures in `errors`.
+
+Each provider translates the query for its own API. Danbooru defaults to `rating:g`. Konachan enforces `rating:s`, filters for at least one megapixel, and orders by resolution. Zerochan is SFW by design and uses its `d=2` (big and huge) size filter with `s=fav` before applying the requested tags and pagination.
+
+The image proxy is restricted to HTTPS URLs from the trusted Danbooru, Konachan, and Zerochan domains so browser-side processing can access image bytes without cross-origin restrictions getting in the way.
 
 ## Subject separation
 
