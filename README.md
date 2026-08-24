@@ -144,10 +144,12 @@ Provider-specific behavior stays in the Studio rather than the renderer. The Nod
 GET /api/health
 GET /api/posts?q=hololive+solo&page=1&providers=danbooru,konachan
 GET /api/tags
-GET /api/image
+GET /api/image?url=...&width=720&format=auto
+GET /robots.txt
+GET /llms.txt
 ```
 
-`providers` accepts one or more of `danbooru`, `konachan`, and `zerochan`. At least one provider is required. When multiple providers are selected, their searches run in parallel. A provider failure does not hide successful results from the others; the response includes those failures in `errors`.
+`/api/image` can negotiate AVIF/WebP and resize remote artwork before it reaches the card renderer. `providers` accepts one or more of `danbooru`, `konachan`, and `zerochan`. At least one provider is required. When multiple providers are selected, their searches run in parallel. A provider failure does not hide successful results from the others; the response includes those failures in `errors`.
 
 Each provider translates the query for its own API. Danbooru defaults to `rating:g`. Konachan enforces `rating:s`, filters for at least one megapixel, and orders by resolution. Zerochan is SFW by design and uses its `d=2` (big and huge) size filter with `s=fav` before applying the requested tags and pagination.
 

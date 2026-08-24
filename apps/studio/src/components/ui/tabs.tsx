@@ -11,5 +11,9 @@ export function TabsList({ className, ...props }: ComponentProps<typeof TabsPrim
 }
 
 export function TabsTrigger({ className, ...props }: ComponentProps<typeof TabsPrimitive.Trigger>) {
-  return <TabsPrimitive.Trigger className={cn('border-0 bg-transparent px-2.5 py-2 font-mono text-[9px] uppercase text-[#6e707b] outline-none transition-colors data-[state=active]:bg-[#20222c] data-[state=active]:text-white focus-visible:ring-1 focus-visible:ring-[var(--acid)]', className)} {...props} />;
+  return <TabsPrimitive.Trigger className={cn('border-0 bg-transparent px-2.5 py-2 font-mono text-[9px] uppercase text-[#a3a6b0] outline-none transition-colors data-[state=active]:bg-[#20222c] data-[state=active]:text-white focus-visible:ring-2 focus-visible:ring-[var(--acid)]', className)} {...props} />;
+}
+
+export function TabsContent({ className, ...props }: ComponentProps<typeof TabsPrimitive.Content>) {
+  return <TabsPrimitive.Content className={cn('outline-none', className)} {...props} />;
 }

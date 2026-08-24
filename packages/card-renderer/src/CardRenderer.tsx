@@ -28,7 +28,7 @@ export interface CardRendererProps {
 type RendererStyle = CSSProperties & Record<`--${string}`, string | number>;
 type CardMaskSettings = NonNullable<CardDefinition['artwork']['subject']>['mask'];
 type WorkerResult = { buffer: ArrayBuffer; contentType: string };
-type DragState = { pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number; active: boolean };
+type DragState = { pointerId: number; startClientX: number; startClientY: number; startX: number; startY: number; width: number; height: number; active: boolean };
 
 function createAbortError() { return new DOMException('Aborted', 'AbortError'); }
 function runWorker(worker: Worker, payload: Record<string, unknown>, transfer: Transferable[] = [], signal?: AbortSignal) {
@@ -109,6 +109,11 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   const shellRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const suppressClickRef = useRef(false);
+  const pendingPlacementRef = useRef<ArtworkPlacement | null>(null);
+  const reducedMotionRef = useRef(false);
+  const tiltRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  const pendingPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const tiltFrameRef = useRef<number | null>(null);
   const [flipped, setFlipped] = useState(false);
   const artworkUrl = useMemo(() => card.artwork.url ? resolveArtworkUrl(card.artwork.url) : '', [card.artwork.url, resolveArtworkUrl]);
   const subject = card.artwork.subject ?? { separated: false, mask: { threshold: 128, feather: 24, expand: 0 } };
@@ -116,21 +121,56 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   const subjectUrl = useRefinedSubject(baseSubject, subject.mask, onStatusChange);
   const backUrl = cardBacks[card.appearance.back as keyof typeof cardBacks] || cardBacks.aurora;
   const style: RendererStyle = { '--art-x': `${card.artwork.x}%`, '--art-y': `${card.artwork.y}%`, '--art-scale': card.artwork.scale, '--mx': '50%', '--my': '50%', '--posx': '50%', '--posy': '50%', '--hyp': 0, '--rx': '0deg', '--ry': '0deg' };
+  const visibleCardText = card.layout === 'standard'
+    ? `HOLO / STANDARD ${card.content.name || 'UNTITLED'} ATK ${card.content.attack} DEF ${card.content.defense} ${card.content.description || 'No description.'} HS–001 PRISMATIC`
+    : `HS–001 PRISMATIC ${card.content.name || 'UNTITLED'}`;
+  const accessibleLabel = `${flipped ? 'Show front' : 'Show back'} of card. ${visibleCardText}.`;
 
   useEffect(() => { if (!artworkUrl) onStatusChange?.('idle'); else if (!subject.separated) onStatusChange?.('loading-artwork'); }, [artworkUrl, subject.separated]);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => { reducedMotionRef.current = media.matches; };
+    update();
+    media.addEventListener('change', update);
+    return () => {
+      media.removeEventListener('change', update);
+      if (tiltFrameRef.current !== null) cancelAnimationFrame(tiltFrameRef.current);
+    };
+  }, []);
 
+  function measureTiltRect(element = shellRef.current) {
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    tiltRectRef.current = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    return tiltRectRef.current;
+  }
+  function cancelTiltFrame() {
+    if (tiltFrameRef.current !== null) cancelAnimationFrame(tiltFrameRef.current);
+    tiltFrameRef.current = null;
+    pendingPointerRef.current = null;
+  }
   function updateTilt(event: PointerEvent<HTMLDivElement>) {
-    if (!interactive || flipped || dragRef.current?.active) return;
-    const shell = shellRef.current; if (!shell) return;
-    const rect = shell.getBoundingClientRect();
-    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
-    const hyp = Math.min(1, Math.hypot(x - .5, y - .5) / Math.SQRT1_2);
-    shell.style.setProperty('--mx', `${x * 100}%`); shell.style.setProperty('--my', `${y * 100}%`); shell.style.setProperty('--posx', `${x * 100}%`); shell.style.setProperty('--posy', `${y * 100}%`); shell.style.setProperty('--hyp', String(hyp)); shell.style.setProperty('--rx', `${(.5 - y) * 12}deg`); shell.style.setProperty('--ry', `${(x - .5) * 12}deg`);
+    if (!interactive || flipped || reducedMotionRef.current || dragRef.current?.active) return;
+    pendingPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
+    if (tiltFrameRef.current !== null) return;
+    tiltFrameRef.current = requestAnimationFrame(() => {
+      tiltFrameRef.current = null;
+      const shell = shellRef.current;
+      const pointer = pendingPointerRef.current;
+      const rect = tiltRectRef.current || measureTiltRect();
+      if (!shell || !pointer || !rect) return;
+      const x = Math.max(0, Math.min(1, (pointer.clientX - rect.left) / rect.width));
+      const y = Math.max(0, Math.min(1, (pointer.clientY - rect.top) / rect.height));
+      const hyp = Math.min(1, Math.hypot(x - .5, y - .5) / Math.SQRT1_2);
+      shell.style.setProperty('--mx', `${x * 100}%`); shell.style.setProperty('--my', `${y * 100}%`); shell.style.setProperty('--posx', `${x * 100}%`); shell.style.setProperty('--posy', `${y * 100}%`); shell.style.setProperty('--hyp', String(hyp)); shell.style.setProperty('--rx', `${(.5 - y) * 12}deg`); shell.style.setProperty('--ry', `${(x - .5) * 12}deg`);
+    });
   }
   function handlePointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!onArtworkPlacementChange || flipped || event.button !== 0) return;
-    dragRef.current = { pointerId: event.pointerId, startClientX: event.clientX, startClientY: event.clientY, startX: card.artwork.x, startY: card.artwork.y, active: false };
+    const rect = measureTiltRect(event.currentTarget);
+    if (!rect) return;
+    pendingPlacementRef.current = null;
+    dragRef.current = { pointerId: event.pointerId, startClientX: event.clientX, startClientY: event.clientY, startX: card.artwork.x, startY: card.artwork.y, width: rect.width, height: rect.height, active: false };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   }
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
@@ -139,8 +179,10 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
       const dx = event.clientX - drag.startClientX; const dy = event.clientY - drag.startClientY;
       if (!drag.active && Math.hypot(dx, dy) >= 7) drag.active = true;
       if (drag.active) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        onArtworkPlacementChange({ x: Math.max(0, Math.min(100, drag.startX + dx / rect.width * 100)), y: Math.max(0, Math.min(100, drag.startY + dy / rect.height * 100)) });
+        const placement = { x: Math.max(0, Math.min(100, drag.startX + dx / drag.width * 100)), y: Math.max(0, Math.min(100, drag.startY + dy / drag.height * 100)) };
+        pendingPlacementRef.current = placement;
+        shellRef.current?.style.setProperty('--art-x', `${placement.x}%`);
+        shellRef.current?.style.setProperty('--art-y', `${placement.y}%`);
         return;
       }
     }
@@ -148,22 +190,25 @@ export function CardRenderer({ card, resolveArtworkUrl = identityArtworkUrl, int
   }
   function endDrag(event: PointerEvent<HTMLDivElement>) {
     const drag = dragRef.current; if (!drag || drag.pointerId !== event.pointerId) return;
-    suppressClickRef.current = drag.active; event.currentTarget.releasePointerCapture?.(event.pointerId); dragRef.current = null;
+    suppressClickRef.current = drag.active;
+    if (drag.active && pendingPlacementRef.current) onArtworkPlacementChange?.(pendingPlacementRef.current);
+    pendingPlacementRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId); dragRef.current = null;
   }
-  function resetTilt() { shellRef.current?.style.setProperty('--rx', '0deg'); shellRef.current?.style.setProperty('--ry', '0deg'); }
+  function resetTilt() { cancelTiltFrame(); shellRef.current?.style.setProperty('--rx', '0deg'); shellRef.current?.style.setProperty('--ry', '0deg'); }
   function toggleFlip() { if (!interactive) return; resetTilt(); setFlipped((value) => !value); }
   function handleClick() { if (suppressClickRef.current) { suppressClickRef.current = false; return; } toggleFlip(); }
   function handleArtworkReady(metrics: ArtworkMetrics) { onArtworkLoad?.(metrics); if (!subject.separated) onStatusChange?.('ready'); }
   function handleArtworkError() { onStatusChange?.('error', new Error('Artwork failed to load')); }
 
-  return <div ref={shellRef} className={`holo-card-shell ${flipped ? 'is-flipped' : ''} ${onArtworkPlacementChange ? 'is-artwork-editable' : ''} ${className}`.trim()} style={style} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={resetTilt} onClick={handleClick} onKeyDown={(event) => { if (!interactive || (event.key !== 'Enter' && event.key !== ' ')) return; event.preventDefault(); toggleFlip(); }} role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-pressed={interactive ? flipped : undefined} aria-label={interactive ? 'Flip card' : undefined}>
+  return <div ref={shellRef} className={`holo-card-shell ${flipped ? 'is-flipped' : ''} ${onArtworkPlacementChange ? 'is-artwork-editable' : ''} ${className}`.trim()} style={style} onPointerEnter={() => { measureTiltRect(); }} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={endDrag} onPointerCancel={endDrag} onPointerLeave={resetTilt} onClick={handleClick} onKeyDown={(event) => { if (!interactive || (event.key !== 'Enter' && event.key !== ' ')) return; event.preventDefault(); toggleFlip(); }} role={interactive ? 'button' : undefined} tabIndex={interactive ? 0 : undefined} aria-pressed={interactive ? flipped : undefined} aria-label={interactive ? accessibleLabel : undefined}>
     <div className="holo-card-rotator">
-      <article className={`card holo-card-face holo-card-front ${card.layout === 'standard' ? 'standard-card' : 'full-art-card'}`}>
+      <article aria-hidden={flipped} className={`card holo-card-face holo-card-front ${card.layout === 'standard' ? 'standard-card' : 'full-art-card'}`}>
         {card.layout === 'standard'
           ? <StandardCard card={card} artworkUrl={artworkUrl} subjectUrl={subjectUrl} onArtworkLoad={handleArtworkReady} onArtworkError={handleArtworkError}/>
           : <FullArtCard card={card} artworkUrl={artworkUrl} subjectUrl={subjectUrl} onArtworkLoad={handleArtworkReady} onArtworkError={handleArtworkError}/>} 
       </article>
-      <div className="holo-card-face holo-card-back" aria-hidden={!flipped}><img src={backUrl} alt={`${card.appearance.back} card back`}/></div>
+      <div className="holo-card-face holo-card-back" aria-hidden={!flipped}><img src={backUrl} alt={`${card.appearance.back} card back`} decoding="async"/></div>
     </div>
   </div>;
 }
