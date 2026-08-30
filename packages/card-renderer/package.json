@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./card-renderer": "./src/CardRenderer.tsx",
+    "./holo-effect-preview": "./src/HoloEffectPreview.tsx",
     "./styles.css": "./src/index.css"
   },
   "dependencies": {

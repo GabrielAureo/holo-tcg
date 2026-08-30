@@ -4,6 +4,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  worker: { format: 'es' },
+  build: {
+    minify: 'esbuild',
+    sourcemap: false,
+  },
   resolve: {
     alias: {
       '@': new URL('./src', import.meta.url).pathname,

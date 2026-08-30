@@ -1,13 +1,14 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ChevronDown, TriangleAlert } from 'lucide-react';
-import { CardRenderer, HoloEffectPreview, type ArtworkMetrics, type CardRendererStatus } from '@holo/card-renderer';
+import { ChevronDown, Search, TriangleAlert } from 'lucide-react';
+import { HoloEffectPreview } from '@holo/card-renderer/holo-effect-preview';
+import type { ArtworkMetrics, CardRendererStatus } from '@holo/card-renderer/card-renderer';
 import type { CardDefinition, CardLayout } from '@holo/card-schema';
 import { EditableNumber } from './components/editable-number';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
 import { Slider } from './components/ui/slider';
-import { Tabs, TabsList, TabsTrigger } from './components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { cn } from './lib/utils';
 import './style.css';
 
@@ -20,20 +21,34 @@ const BACKS = ['aurora', 'cosmic', 'gold', 'minimal'] as const;
 const FOIL_IDS = new Set<string>(FOILS.map(([id]) => id));
 const BACK_IDS = new Set<string>(BACKS);
 const DEFAULT_MASK = { threshold: 128, feather: 24, expand: 0 } as const;
+const PROVIDERS = [
+  ['danbooru', 'Danbooru'],
+  ['konachan', 'Konachan'],
+  ['zerochan', 'Zerochan'],
+] as const;
+
+type ProviderId = typeof PROVIDERS[number][0];
 
 const monoLabel = 'font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]';
-const fieldsetClass = 'm-[4px_0_28px] border-0 p-0';
+const fieldsetClass = 'my-7 border-0 p-0';
 const textFieldClass = 'w-full border border-[#30333e] bg-[#11131b] px-3 py-2.5 font-sans text-[12px] text-[#e8e9ed] outline-none transition-colors placeholder:text-[#555966] focus:border-[var(--acid)]';
 
-type Post = { id: number; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
+type Post = { id: string; provider?: ProviderId; tag_string_character?: string; image_width: number; image_height: number; preview_file_url?: string; large_file_url?: string; file_url?: string };
 type TagSuggestion = { name: string; post_count?: number | null };
 type HoloLayer = 'background' | 'subject' | 'frame';
 type MaskSettings = NonNullable<CardDefinition['artwork']['subject']>['mask'];
 
-function proxied(url: string) { return url ? `/api/image?url=${encodeURIComponent(url)}` : ''; }
+const LazyCardRenderer = lazy(() => import('@holo/card-renderer/card-renderer').then(({ CardRenderer }) => ({ default: CardRenderer })));
+
+function proxied(url: string, width = 720) {
+  if (!url) return '';
+  const params = new URLSearchParams({ url, width: String(width), format: 'auto' });
+  return `/api/image?${params}`;
+}
 function postImage(post: Post) { return post.large_file_url || post.file_url || post.preview_file_url || ''; }
 function postPreview(post: Post) { return post.preview_file_url || post.large_file_url || post.file_url || ''; }
 function friendlyName(post: Post) { const tag = post.tag_string_character?.split(' ')[0] || 'untitled character'; return tag.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function providerLabel(id?: ProviderId) { return PROVIDERS.find(([provider]) => provider === id)?.[1] || 'Artwork'; }
 function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 function safeNumber(value: string | null, fallback: number, min: number, max: number) { const parsed = Number(value); return Number.isFinite(parsed) ? clamp(parsed, min, max) : fallback; }
 function normalizeTag(value: string) { return value.trim().replace(/\s+/g, '_'); }
@@ -89,8 +104,12 @@ function syncQuery(card: CardDefinition) {
   history.replaceState(null, '', `${location.pathname}?${q}`);
 }
 
+function CardPreviewPlaceholder({ label }: { label: string }) {
+  return <div className="grid aspect-[.714] w-[min(355px,70%)] max-w-full place-items-center rounded-[18px] border border-white/15 bg-[#111322] px-8 text-center font-mono text-[10px] uppercase tracking-[.12em] text-[#9a9da8] shadow-[0_28px_60px_#000c] max-[700px]:w-[min(300px,100%)]" role="status">{label}</div>;
+}
+
 function SectionHeader({ step, title, source }: { step: string; title: string; source?: string }) {
-  return <div className="mb-[22px] flex items-start justify-between"><div className="flex items-center gap-[11px]"><span className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">{step}</span><h2 className="m-0 font-sans text-[15px] font-bold">{title}</h2></div>{source && <span className="border border-[var(--line)] px-[7px] py-[5px] font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#666976]">{source}</span>}</div>;
+  return <div className="mb-6 flex items-start justify-between"><div className="flex items-center gap-3"><span className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">{step}</span><h2 className="m-0 font-sans text-[15px] font-bold">{title}</h2></div>{source && <span className="border border-[var(--line)] px-[7px] py-[5px] font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[#a3a6b0]">{source}</span>}</div>;
 }
 
 function MaskControl({ label, value, min, max, onChange, warnLow = false }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; warnLow?: boolean }) {
@@ -99,19 +118,21 @@ function MaskControl({ label, value, min, max, onChange, warnLow = false }: { la
       <span className="flex items-center gap-1.5">{label}{warnLow && value < 10 && <span className="group relative inline-flex" tabIndex={0} aria-label="Low threshold values may cause artifacts around the subject"><TriangleAlert className="size-3.5 text-amber-400" aria-hidden="true"/><span role="tooltip" className="pointer-events-none absolute bottom-[calc(100%+7px)] left-1/2 z-50 w-52 -translate-x-1/2 bg-[#090a10] px-2.5 py-2 text-center font-sans text-[11px] normal-case tracking-normal text-[#d9dbe2] opacity-0 shadow-[0_8px_24px_#000c] transition-opacity group-hover:opacity-100 group-focus:opacity-100">Low threshold values may cause artifacts around the subject.</span></span>}</span>
       <EditableNumber label={label} value={value} min={min} max={max} onChange={onChange}/>
     </div>
-    <Slider min={min} max={max} step={1} value={[value]} onValueChange={([next]) => onChange(next)}/>
+    <Slider aria-label={`${label} mask value`} min={min} max={max} step={1} value={[value]} onValueChange={([next]) => onChange(next)}/>
   </div>;
 }
 
 function Studio() {
   const [card, setCard] = useState<CardDefinition>(() => cardFromQuery());
   const [posts, setPosts] = useState<Post[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedProviders, setSelectedProviders] = useState<ProviderId[]>(['danbooru']);
   const [tags, setTags] = useState(['hololive', 'solo']);
   const [tagInput, setTagInput] = useState('');
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([]);
   const [page, setPage] = useState(1);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [searchNotice, setSearchNotice] = useState('');
   const [renderStatus, setRenderStatus] = useState<CardRendererStatus>('idle');
   const [renderError, setRenderError] = useState('');
   const [subjectRefreshKey, setSubjectRefreshKey] = useState(0);
@@ -119,26 +140,55 @@ function Studio() {
   const [maskOpen, setMaskOpen] = useState(false);
   const [pendingMask, setPendingMask] = useState<MaskSettings>(() => ({ ...(card.artwork.subject?.mask ?? DEFAULT_MASK) }));
   const suggestionTimer = useRef<number | undefined>(undefined);
+  const suggestionController = useRef<AbortController | null>(null);
+  const searchController = useRef<AbortController | null>(null);
   const autoFitNextArtwork = useRef(false);
   const hasArtwork = Boolean(card.artwork.url);
 
   useEffect(() => { syncQuery(card); }, [card]);
-  useEffect(() => { void loadPosts(false, 1, 'hololive solo'); }, []);
+  useEffect(() => {
+    if (card.artwork.url) return;
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (idleWindow.requestIdleCallback) {
+      const id = idleWindow.requestIdleCallback(() => void loadPosts(false, 1, 'hololive solo'), { timeout: 800 });
+      return () => idleWindow.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(() => void loadPosts(false, 1, 'hololive solo'), 250);
+    return () => window.clearTimeout(timer);
+  }, []);
   useEffect(() => {
     if ((activeHoloLayer === 'subject' && !card.artwork.subject?.separated) || (activeHoloLayer === 'frame' && card.layout !== 'standard')) setActiveHoloLayer('background');
   }, [activeHoloLayer, card.artwork.subject?.separated, card.layout]);
+  useEffect(() => () => {
+    window.clearTimeout(suggestionTimer.current);
+    suggestionController.current?.abort();
+    searchController.current?.abort();
+  }, []);
 
-  async function loadPosts(append: boolean, requestedPage: number, query: string) {
+  async function loadPosts(append: boolean, requestedPage: number, query: string, providerIds = selectedProviders) {
+    searchController.current?.abort();
+    const controller = new AbortController();
+    searchController.current = controller;
     setLoadingPosts(true);
     try {
-      const response = await fetch(`/api/posts?q=${encodeURIComponent(query.trim())}&page=${requestedPage}`);
+      const params = new URLSearchParams({ q: query.trim(), page: String(requestedPage), providers: providerIds.join(',') });
+      const response = await fetch(`/api/posts?${params}`, { signal: controller.signal });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || 'The imageboard could not be reached.');
-      setPosts((previous) => append ? [...previous, ...payload] : payload); setPage(requestedPage);
+      if (!response.ok) throw new Error(payload?.error || "We couldn't reach the artwork providers.");
+      const items: Post[] = Array.isArray(payload) ? payload : payload.items || [];
+      const errors = Array.isArray(payload?.errors) ? payload.errors : [];
+      setSearchNotice(errors.length ? `Some providers are unavailable: ${errors.map((item: { label: string }) => item.label).join(', ')}. Results from the others are still shown.` : '');
+      setPosts((previous) => append ? [...previous, ...items] : items); setPage(requestedPage);
     } catch (error) {
+      if (controller.signal.aborted) return;
       if (!append) setPosts([]);
-      setRenderError(error instanceof Error ? error.message : String(error));
-    } finally { setLoadingPosts(false); }
+      setSearchNotice(error instanceof Error ? error.message : "We couldn't reach the artwork providers. Check your connection and try again.");
+    } finally {
+      if (searchController.current === controller) setLoadingPosts(false);
+    }
   }
 
   function selectPost(post: Post) {
@@ -155,8 +205,31 @@ function Studio() {
   function patchAppearance(patch: Partial<CardDefinition['appearance']>) { setCard((current) => ({ ...current, appearance: { ...current.appearance, ...patch } })); }
   function setLayout(layout: CardLayout) { setCard((current) => ({ ...current, layout })); }
   function patchPendingMask(patch: Partial<MaskSettings>) { setPendingMask((current) => ({ ...current, ...patch })); }
+  function toggleProvider(provider: ProviderId) {
+    if (selectedProviders.includes(provider) && selectedProviders.length === 1) return;
+    const next = selectedProviders.includes(provider) ? selectedProviders.filter((item) => item !== provider) : [...selectedProviders, provider];
+    setSelectedProviders(next);
+    setPosts([]);
+    setPage(1);
+    setSearchNotice('');
+  }
   function addTag(value: string) { const tag = normalizeTag(value); if (!tag || tags.includes(tag)) return tags; const next = [...tags, tag]; setTags(next); setTagInput(''); setSuggestions([]); return next; }
-  async function requestSuggestions(value: string) { setTagInput(value); window.clearTimeout(suggestionTimer.current); if (!value.trim()) return setSuggestions([]); suggestionTimer.current = window.setTimeout(async () => { const response = await fetch(`/api/tags?q=${encodeURIComponent(value.trim())}`); if (response.ok) setSuggestions((await response.json()).filter((item: TagSuggestion) => !tags.includes(item.name))); }, 180); }
+  function requestSuggestions(value: string) {
+    setTagInput(value);
+    window.clearTimeout(suggestionTimer.current);
+    suggestionController.current?.abort();
+    if (!value.trim()) return setSuggestions([]);
+    suggestionTimer.current = window.setTimeout(async () => {
+      const controller = new AbortController();
+      suggestionController.current = controller;
+      try {
+        const response = await fetch(`/api/tags?q=${encodeURIComponent(value.trim())}`, { signal: controller.signal });
+        if (response.ok && !controller.signal.aborted) setSuggestions((await response.json()).filter((item: TagSuggestion) => !tags.includes(item.name)));
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setSuggestions([]);
+      }
+    }, 180);
+  }
   function submitSearch(event: FormEvent) { event.preventDefault(); const nextTags = tagInput.trim() ? addTag(tagInput) : tags; void loadPosts(false, 1, nextTags.join(' ')); }
   function separateSubject() { setCard((current) => ({ ...current, artwork: { ...current.artwork, subject: { separated: true, mask: { ...pendingMask } } } })); setSubjectRefreshKey((value) => value + 1); }
   function resetPendingMask() { setPendingMask({ ...DEFAULT_MASK }); }
@@ -178,55 +251,64 @@ function Studio() {
   const holoTabsClass = card.layout === 'standard' && subject.separated ? 'grid-cols-3' : card.layout === 'standard' || subject.separated ? 'grid-cols-2' : 'grid-cols-1';
 
   return <>
+    <a className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:bg-[var(--acid)] focus:px-3 focus:py-2 focus:font-mono focus:text-[10px] focus:uppercase focus:text-[#10110d]" href="#studio-main">Skip to studio</a>
     <header className="flex h-[76px] items-center justify-between border-b border-[var(--line)] px-[3vw]">
       <a className="flex items-center gap-3 font-mono text-[13px] font-semibold tracking-[.12em] text-white no-underline" href="#"><span className="grid size-8 place-items-center bg-[var(--acid)] font-bold text-[#111] [clip-path:polygon(25%_0,100%_0,75%_100%,0_100%)]">H</span><span>HOLO / STUDIO</span></a>
-      <div className="font-mono text-[10px] uppercase tracking-[.08em] text-[var(--muted)] max-[700px]:hidden"><i className="mr-[7px] inline-block size-1.5 rounded-full bg-[var(--acid)] shadow-[0_0_8px_var(--acid)]" />Browser processing · images stay local</div>
+      <div className="font-mono text-[10px] uppercase tracking-[.08em] text-[var(--muted)] max-[700px]:hidden"><i className="mr-[7px] inline-block size-1.5 rounded-full bg-[var(--acid)] shadow-[0_0_8px_var(--acid)]" />Processing happens in your browser · images stay on this device</div>
     </header>
 
-    <main className="mx-auto max-w-[1600px] px-[3vw] pb-20 pt-14 font-sans max-[700px]:px-3.5 max-[700px]:pt-[38px]">
-      <section className="mx-auto mb-[45px] max-w-[760px] text-center max-[700px]:text-left">
+    <main id="studio-main" className="mx-auto max-w-[1600px] px-[3vw] pb-20 pt-12 font-sans max-[700px]:px-3.5 max-[700px]:pt-10">
+      <section className="mx-auto mb-12 max-w-[760px] text-center max-[700px]:text-left">
         <p className="font-mono text-[10px] font-medium uppercase tracking-[.14em] text-[var(--acid)]">Holographic card composer</p>
         <h1 className="my-[14px] font-sans text-[clamp(38px,5vw,70px)] font-bold leading-[1.02] tracking-[-.055em]">Turn character art into<br className="max-[700px]:hidden"/><em className="font-display font-semibold italic text-[#b9bbc4]">a collectible moment.</em></h1>
         <p className="mx-auto max-w-[580px] text-sm leading-[1.7] text-[#92949f] max-[700px]:mx-0">Browse anime artwork, separate its subject locally, and apply interactive holographic finishes.</p>
       </section>
 
       <div className="grid min-h-[680px] grid-cols-[minmax(250px,320px)_minmax(380px,1fr)_minmax(250px,320px)] border border-[var(--line)] bg-[#0c0d14] max-[1000px]:grid-cols-[280px_1fr] max-[700px]:flex max-[700px]:flex-col min-[1001px]:h-[680px] min-[1001px]:min-h-0">
-        <aside className="min-h-0 border-r border-[var(--line)] bg-[#0d0e15] p-[26px] max-[700px]:border-b max-[700px]:border-r-0">
-          <SectionHeader step="01" title="Find artwork" source="DANBOORU" />
-          <form className="flex items-stretch border border-[#323440] bg-[#11121b] focus-within:border-[#707482]" autoComplete="off" onSubmit={submitSearch}>
-            <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-[5px] p-[7px]">
-              {tags.map((tag, index) => <Button variant="surface" size="compact" className="h-auto max-w-full gap-1.5 px-[7px] py-[5px] normal-case text-[#d7d9e0]" key={tag} onClick={() => setTags(tags.filter((_, i) => i !== index))}><span className="overflow-hidden text-ellipsis">{tag}</span><b className="text-[13px] font-normal leading-none text-[#777b88]">×</b></Button>)}
-              <input className="min-w-[90px] flex-1 border-0 bg-transparent px-[3px] py-1.5 font-mono text-[11px] text-white outline-none" aria-label="Add search tag" placeholder="Add a tag…" value={tagInput} onChange={(e) => void requestSuggestions(e.target.value)} />
-              {suggestions.length > 0 && <div className="absolute -left-px -right-px top-[calc(100%+8px)] z-40 max-h-[250px] overflow-auto border border-[#3a3d49] bg-[#11131c] shadow-[0_16px_34px_#000b]">{suggestions.map((item) => <button type="button" className="flex w-full items-center justify-between gap-3 border-0 border-b border-[#242732] bg-transparent px-[11px] py-2.5 text-left font-mono text-[10px] text-[#d9dbe2] last:border-b-0 hover:bg-[#1d202b] hover:text-[var(--acid)] focus:bg-[#1d202b] focus:text-[var(--acid)] focus:outline-none" key={item.name} onClick={() => addTag(item.name)}><span>{item.name}</span><small className="font-mono text-[8px] text-[#717582]">{item.post_count?.toLocaleString()}</small></button>)}</div>}
+        <aside aria-label="Artwork search" className="min-h-0 border-r border-[var(--line)] bg-[#0d0e15] p-6 max-[700px]:border-b max-[700px]:border-r-0 min-[1001px]:overflow-y-auto">
+          <SectionHeader step="01" title="Find artwork" source="PROVIDERS" />
+          <div className="mb-4">
+            <div className="mb-2.5 flex items-center justify-between"><span className={monoLabel}>Providers</span><small className="font-mono text-[8px] uppercase tracking-[.06em] text-[#9da2ad]">Choose one or more</small></div>
+            <p className="mb-2.5 text-[10px] leading-[1.5] text-[#a5a7b0]">Shared tags across providers; Konachan and Zerochan prefer safe, high-resolution results.</p>
+            <div className="grid grid-cols-3 gap-1.5">{PROVIDERS.map(([id, label]) => <Button variant="surface" size="compact" key={id} aria-pressed={selectedProviders.includes(id)} className={cn('min-h-11 min-w-0 px-1.5 text-[9px]', selectedProviders.includes(id) && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} disabled={selectedProviders.includes(id) && selectedProviders.length === 1} onClick={() => toggleProvider(id)}>{label}</Button>)}</div>
+          </div>
+          <form aria-label="Search artwork" className="flex items-stretch border border-[#323440] bg-[#11121b] focus-within:border-[#707482]" autoComplete="off" onSubmit={submitSearch}>
+            <div className="relative flex min-w-0 flex-1 flex-wrap items-center gap-1.5 p-2">
+              {tags.map((tag, index) => <Button variant="surface" size="compact" className="min-h-11 h-auto max-w-full gap-1.5 px-[7px] py-[5px] normal-case text-[#d7d9e0]" key={tag} onClick={() => setTags(tags.filter((_, i) => i !== index))}><span className="overflow-hidden text-ellipsis">{tag}</span><b aria-hidden="true" className="text-[13px] font-normal leading-none text-[#777b88]">×</b><span className="sr-only">Remove tag</span></Button>)}
+              <input className="min-w-[90px] flex-1 border-0 bg-transparent px-[3px] py-1.5 font-mono text-[11px] text-white outline-none" aria-label="Add search tag" role="combobox" aria-autocomplete="list" aria-expanded={suggestions.length > 0} aria-controls="tag-suggestions" placeholder="Add a tag…" value={tagInput} onChange={(e) => void requestSuggestions(e.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setSuggestions([]); }} />
+              {suggestions.length > 0 && <div id="tag-suggestions" role="listbox" className="absolute -left-px -right-px top-[calc(100%+8px)] z-40 max-h-[250px] overflow-auto border border-[#3a3d49] bg-[#11131c] shadow-[0_16px_34px_#000b]">{suggestions.map((item) => <button type="button" role="option" className="flex min-h-11 w-full items-center justify-between gap-3 border-0 border-b border-[#242732] bg-transparent px-[11px] py-2.5 text-left font-mono text-[10px] text-[#d9dbe2] last:border-b-0 hover:bg-[#1d202b] hover:text-[var(--acid)] focus:bg-[#1d202b] focus:text-[var(--acid)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--acid)]" key={item.name} onClick={() => addTag(item.name)}><span>{item.name}</span><small className="font-mono text-[8px] text-[#717582]">{item.post_count?.toLocaleString()}</small></button>)}</div>}
             </div>
-            <button className="w-11 shrink-0 border-0 border-l border-[var(--line)] bg-transparent text-[var(--acid)]" type="submit">↗</button>
+            <button className="flex w-16 shrink-0 items-center justify-center gap-1.5 border-0 border-l border-[var(--line)] bg-transparent font-mono text-[9px] uppercase tracking-[.04em] text-[var(--acid)]" type="submit" aria-label="Search artwork"><Search className="size-3.5" aria-hidden="true"/><span>Search</span></button>
           </form>
-          <div className="mt-[15px] grid max-h-[440px] grid-cols-3 gap-[7px] overflow-auto pr-[3px] max-[700px]:max-h-[360px] max-[700px]:grid-cols-4">{loadingPosts && !posts.length ? <div className="col-span-full px-2.5 py-[60px] text-center font-mono text-[11px] leading-[1.8] text-[var(--muted)]">Loading artwork…</div> : posts.map((post) => <button className={cn('relative aspect-[.76] overflow-hidden border border-transparent bg-[#171821] p-0', selectedId === post.id && 'border-[var(--acid)]')} key={post.id} onClick={() => selectPost(post)}>{postPreview(post) ? <img className="size-full object-cover saturate-[.8] transition hover:scale-105 hover:saturate-[1.1]" src={proxied(postPreview(post))} loading="lazy" alt={friendlyName(post)} /> : <div className="grid size-full place-items-center bg-[repeating-linear-gradient(135deg,#171821_0_8px,#12131b_8px_16px)] p-2 text-center font-mono text-[7px] text-[#666a77]">NO IMAGE</div>}<span className="absolute bottom-1 left-1 bg-[#090a10cc] p-[3px] font-mono text-[7px] text-[#c7c9d0]">{post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>)}</div>
-          <Button className="my-3.5 w-full" disabled={loadingPosts} onClick={() => void loadPosts(true, page + 1, tags.join(' '))}>Load more</Button>
-          <small className="block text-[9px] leading-[1.5] text-[#60626d]">Artwork is served by Danbooru and belongs to its respective artists.</small>
+          <div className="mt-4 grid max-h-[440px] grid-cols-3 gap-2 overflow-auto pr-1 max-[700px]:max-h-[360px] max-[700px]:grid-cols-4">{loadingPosts && !posts.length ? <div className="col-span-full px-2.5 py-[60px] text-center font-mono text-[11px] leading-[1.8] text-[var(--muted)]">Loading artwork from the selected providers…</div> : posts.length ? posts.map((post) => <button className={cn('relative aspect-[.76] min-h-11 overflow-hidden border border-transparent bg-[#171821] p-0', selectedId === post.id && 'border-[var(--acid)]')} key={post.id} onClick={() => selectPost(post)} aria-pressed={selectedId === post.id} aria-label={`${friendlyName(post)} from ${providerLabel(post.provider)} (${post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'})`}>{postPreview(post) ? <img className="size-full object-cover saturate-[.8] transition hover:scale-105 hover:saturate-[1.1]" src={proxied(postPreview(post), 180)} width={post.image_width || undefined} height={post.image_height || undefined} loading="lazy" decoding="async" alt={friendlyName(post)} /> : <div className="grid size-full place-items-center bg-[repeating-linear-gradient(135deg,#171821_0_8px,#12131b_8px_16px)] p-2 text-center font-mono text-[7px] text-[#666a77]">NO IMAGE</div>}<span className="absolute left-1 top-1 bg-[#090a10cc] p-[3px] font-mono text-[8px] uppercase text-[var(--acid)]">{providerLabel(post.provider)}</span><span className="absolute bottom-1 left-1 bg-[#090a10cc] p-[3px] font-mono text-[8px] text-[#c7c9d0]">{post.image_height > post.image_width * 1.15 ? 'PORTRAIT' : 'ART'}</span></button>) : <div className="col-span-full px-3 py-10 text-center text-[11px] leading-[1.7] text-[#a5a7b0]">No artwork found.<br /><span className="text-[10px] text-[#777b87]">Try removing a tag or searching for a broader term.</span></div>}</div>
+          <Button className="my-3.5 w-full" disabled={loadingPosts || !posts.length} onClick={() => void loadPosts(true, page + 1, tags.join(' '))}>Load more artwork</Button>
+          {searchNotice && <p className="mb-3 text-[10px] leading-[1.5] text-amber-200" role="status" aria-live="polite">{searchNotice}</p>}
+          <small className="block text-[10px] leading-[1.5] text-[#858893]">Images come from the selected providers. Artists retain their rights.</small>
         </aside>
 
-        <section className="relative flex flex-col items-center justify-center overflow-hidden bg-[linear-gradient(#14162080_1px,transparent_1px),linear-gradient(90deg,#14162080_1px,transparent_1px)] bg-[size:36px_36px] [perspective:1000px] max-[1000px]:min-h-[650px] max-[700px]:order-first max-[700px]:min-h-[580px]" aria-label="Card preview">
-          <CardRenderer className="w-[min(355px,70%)] max-[700px]:w-[300px]" card={card} resolveArtworkUrl={proxied} interactive={hasArtwork} subjectRefreshKey={subjectRefreshKey} onArtworkPlacementChange={hasArtwork ? ({ x, y }) => patchArtwork({ x, y }) : undefined} onArtworkLoad={handleArtworkLoad} onStatusChange={handleRendererStatus} />
-          {busy && <div className="absolute inset-0 z-50 grid place-items-center content-center gap-3 bg-[#0c0d14cc] font-mono text-[10px] uppercase tracking-[.12em] text-[#cfd2da]"><span className="size-[26px] animate-spin rounded-full border-2 border-[#ffffff26] border-r-[var(--acid)]"/><span>{renderStatus === 'separating-subject' ? 'Separating subject…' : renderStatus === 'refining-mask' ? 'Refining mask…' : 'Loading card…'}</span></div>}
+        <section className="relative flex min-w-0 flex-col items-center justify-center overflow-hidden bg-[linear-gradient(#14162080_1px,transparent_1px),linear-gradient(90deg,#14162080_1px,transparent_1px)] bg-[size:36px_36px] [perspective:1000px] max-[1000px]:min-h-[650px] max-[700px]:min-h-[580px]" aria-label="Card preview" aria-busy={busy}>
+          {hasArtwork ? <Suspense fallback={<CardPreviewPlaceholder label="Loading card…" />}><LazyCardRenderer className="w-[min(355px,70%)] max-w-full max-[700px]:w-[min(300px,100%)]" card={card} resolveArtworkUrl={proxied} interactive subjectRefreshKey={subjectRefreshKey} onArtworkPlacementChange={({ x, y }) => patchArtwork({ x, y })} onArtworkLoad={handleArtworkLoad} onStatusChange={handleRendererStatus} /></Suspense> : <CardPreviewPlaceholder label="Select an artwork" />}
+          {busy && <div className="absolute inset-0 z-50 grid place-items-center content-center gap-3 bg-[#0c0d14cc] font-mono text-[10px] uppercase tracking-[.12em] text-[#cfd2da]" role="status" aria-live="polite" aria-label="Card processing"><span className="size-[26px] animate-spin rounded-full border-2 border-[#ffffff26] border-r-[var(--acid)]" aria-hidden="true"/><span>{renderStatus === 'separating-subject' ? 'Separating subject…' : renderStatus === 'refining-mask' ? 'Refining mask…' : 'Loading card…'}</span></div>}
           <p className="mt-[22px] font-mono text-[9px] uppercase tracking-[.08em] text-[#666874]">Drag to place · move to shift the light · click to flip</p>
         </section>
 
-        <aside className="min-h-0 border-l border-[var(--line)] bg-[#0d0e15] p-[26px] max-[1000px]:col-span-full max-[1000px]:border-l-0 max-[1000px]:border-t max-[1000px]:border-[var(--line)] min-[1001px]:overflow-y-auto">
+        <aside aria-label="Card settings" className="min-h-0 border-l border-[var(--line)] bg-[#0d0e15] p-6 max-[1000px]:col-span-full max-[1000px]:border-l-0 max-[1000px]:border-t max-[1000px]:border-[var(--line)] min-[1001px]:overflow-y-auto">
           <SectionHeader step="02" title="Compose" />
           <fieldset className={fieldsetClass}>
             <legend className={cn(monoLabel, 'mb-2.5')}>Holo style</legend>
             <Tabs value={activeHoloLayer} onValueChange={(value) => setActiveHoloLayer(value as HoloLayer)}>
-              <TabsList className={cn(holoTabsClass, 'mb-2.5')}><TabsTrigger value="background">Background</TabsTrigger>{subject.separated && <TabsTrigger value="subject">Subject</TabsTrigger>}{card.layout === 'standard' && <TabsTrigger value="frame">Frame</TabsTrigger>}</TabsList>
+              <TabsList aria-label="Holographic effect layer" className={cn(holoTabsClass, 'mb-2.5')}><TabsTrigger value="background">Background</TabsTrigger>{subject.separated && <TabsTrigger value="subject">Subject</TabsTrigger>}{card.layout === 'standard' && <TabsTrigger value="frame">Frame</TabsTrigger>}</TabsList>
+              <TabsContent value={activeHoloLayer} className="mt-0 outline-none">
+                <div className="grid grid-cols-2 gap-1.5 pr-1">
+              {(activeHoloLayer === 'subject' || activeHoloLayer === 'frame') && <Button variant="surface" size="compact" className={cn('relative min-h-11 justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')} aria-pressed={activeFoil === 'none'}>None</Button>}
+                  {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} aria-pressed={activeFoil === id} className={cn('group relative isolate min-h-11 justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="pointer-events-none relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
+                </div>
+              </TabsContent>
             </Tabs>
-            <div className="grid max-h-[330px] grid-cols-2 gap-1.5 overflow-auto pr-[3px]">
-              {(activeHoloLayer === 'subject' || activeHoloLayer === 'frame') && <Button variant="surface" size="compact" className={cn('relative min-h-[42px] justify-start overflow-hidden text-left', activeFoil === 'none' && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil('none')}>None</Button>}
-              {FOILS.map(([id, label]) => <Button variant="surface" size="compact" key={id} className={cn('group relative isolate min-h-[42px] justify-start overflow-hidden text-left', activeFoil === id && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => chooseFoil(id)}><HoloEffectPreview foil={id}/><span className="pointer-events-none relative z-[2] [text-shadow:0_1px_4px_#000]">{label}</span></Button>)}
-            </div>
           </fieldset>
 
           <Collapsible open={maskOpen} onOpenChange={setMaskOpen} className="-mt-3.5 mb-7">
-            <div className="grid grid-cols-[minmax(0,1fr)_42px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_44px]">
               <Button variant="primary" className="rounded-none border-r-[#10110d33]" disabled={disabled} onClick={separateSubject}><span>✦</span>{subject.separated ? 'Separate again' : 'Separate subject'}</Button>
               <CollapsibleTrigger asChild><Button variant="primary" size="icon" className="rounded-none border-l-[#10110d33] px-0" disabled={disabled} aria-label="Toggle mask refinement settings"><ChevronDown className={cn('size-4 transition-transform duration-150', maskOpen && 'rotate-180')} /></Button></CollapsibleTrigger>
             </div>
@@ -242,8 +324,8 @@ function Studio() {
           <fieldset className={fieldsetClass}>
             <legend className={cn(monoLabel, 'mb-2.5')}>Card layout</legend>
             <div className="grid grid-cols-2 bg-[#090a10] p-[3px]">
-              <Button variant="ghost" className={cn('border-0', card.layout === 'full-art' && 'bg-[#20222c] text-white')} onClick={() => setLayout('full-art')}>Full Art</Button>
-              <Button variant="ghost" className={cn('border-0', card.layout === 'standard' && 'bg-[#20222c] text-white')} onClick={() => setLayout('standard')}>Standard</Button>
+              <Button variant="ghost" aria-pressed={card.layout === 'full-art'} className={cn('border-0', card.layout === 'full-art' && 'bg-[#20222c] text-white')} onClick={() => setLayout('full-art')}>Full Art</Button>
+              <Button variant="ghost" aria-pressed={card.layout === 'standard'} className={cn('border-0', card.layout === 'standard' && 'bg-[#20222c] text-white')} onClick={() => setLayout('standard')}>Standard</Button>
             </div>
           </fieldset>
 
@@ -259,13 +341,18 @@ function Studio() {
             </>}
           </fieldset>
 
-          <fieldset className={fieldsetClass}><legend className={cn(monoLabel, 'mb-2.5')}>Card back</legend><div className="grid grid-cols-2 gap-1.5">{BACKS.map((back) => <Button variant="surface" size="compact" key={back} className={cn('justify-start capitalize', card.appearance.back === back && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => patchAppearance({ back })}>{back}</Button>)}</div></fieldset>
+          <fieldset className={fieldsetClass}><legend className={cn(monoLabel, 'mb-2.5')}>Card back</legend><div className="grid grid-cols-2 gap-1.5">{BACKS.map((back) => <Button variant="surface" size="compact" key={back} aria-pressed={card.appearance.back === back} className={cn('justify-start capitalize', card.appearance.back === back && 'border-[var(--acid)] bg-[#191b24] text-[#f1f2f5]')} onClick={() => patchAppearance({ back })}>{back}</Button>)}</div></fieldset>
 
-          <div className="my-6"><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Artwork scale</span><EditableNumber label="Artwork scale" value={Math.round(card.artwork.scale * 100)} min={50} max={220} onChange={(value) => patchArtwork({ scale: value / 100 })}/></div><Slider min={50} max={220} value={[card.artwork.scale * 100]} onValueChange={([value]) => patchArtwork({ scale: value / 100 })}/></div>
-          <div className="my-6"><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Horizontal</span><EditableNumber label="Horizontal" value={Math.round(card.artwork.x)} min={0} max={100} onChange={(value) => patchArtwork({ x: value })}/></div><Slider min={0} max={100} value={[card.artwork.x]} onValueChange={([value]) => patchArtwork({ x: value })}/></div>
-          <div className="my-6"><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Vertical</span><EditableNumber label="Vertical" value={Math.round(card.artwork.y)} min={0} max={100} onChange={(value) => patchArtwork({ y: value })}/></div><Slider min={0} max={100} value={[card.artwork.y]} onValueChange={([value]) => patchArtwork({ y: value })}/></div>
+          <fieldset className={fieldsetClass}>
+            <legend className={cn(monoLabel, 'mb-2.5')}>Artwork placement</legend>
+            <div className="space-y-6">
+              <div><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Scale</span><EditableNumber label="Artwork scale" value={Math.round(card.artwork.scale * 100)} min={50} max={220} onChange={(value) => patchArtwork({ scale: value / 100 })}/></div><Slider aria-label="Artwork scale" min={50} max={220} value={[card.artwork.scale * 100]} onValueChange={([value]) => patchArtwork({ scale: value / 100 })}/></div>
+              <div><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Horizontal</span><EditableNumber label="Horizontal" value={Math.round(card.artwork.x)} min={0} max={100} onChange={(value) => patchArtwork({ x: value })}/></div><Slider aria-label="Artwork horizontal position" min={0} max={100} value={[card.artwork.x]} onValueChange={([value]) => patchArtwork({ x: value })}/></div>
+              <div><div className="mb-2.5 flex w-full items-center justify-between font-mono text-[10px] uppercase tracking-[.06em] text-[#9a9ca6]"><span>Vertical</span><EditableNumber label="Vertical" value={Math.round(card.artwork.y)} min={0} max={100} onChange={(value) => patchArtwork({ y: value })}/></div><Slider aria-label="Artwork vertical position" min={0} max={100} value={[card.artwork.y]} onValueChange={([value]) => patchArtwork({ y: value })}/></div>
+            </div>
+          </fieldset>
 
-          {renderError && <p className="min-h-[34px] text-[10px] leading-[1.55] text-[#696b76]">{renderError}</p>}
+          {renderError && <p className="min-h-[34px] text-[10px] leading-[1.55] text-[#c7cad3]" role="alert">{renderError}</p>}
           <Button className="my-3.5 w-full" onClick={() => patchArtwork({ x: 50, y: 48, scale: 1 })}>Reset placement</Button>
         </aside>
       </div>

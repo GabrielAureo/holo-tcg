@@ -28,7 +28,7 @@ export function HoloEffectPreview({ foil, className = '' }: HoloEffectPreviewPro
   return (
     <span
       ref={ref}
-      className={`card holo-effect-preview ${className}`.trim()}
+      className={`holo-effect-preview ${className}`.trim()}
       data-foil={foil}
       onPointerMove={handlePointerMove}
       aria-hidden="true"
